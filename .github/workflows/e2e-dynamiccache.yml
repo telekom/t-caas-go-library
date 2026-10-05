@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: 2026 Deutsche Telekom AG
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Runs the pkg/controllerruntime/dynamiccache contract against a throwaway kind
+# cluster with the public auth-operator Helm chart
+# (oci://ghcr.io/telekom/charts/auth-operator, version pinned in versions.env)
+# and a restricted ServiceAccount: RBAC grant race, synthetic deletes on
+# unlabel, re-selection on relabel.
+name: dynamiccache e2e
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - pkg/controllerruntime/dynamiccache/**
+      - e2e/dynamiccache/**
+      - go.mod
+      - go.sum
+      - versions.env
+      - .github/workflows/e2e-dynamiccache.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - pkg/controllerruntime/dynamiccache/**
+      - e2e/dynamiccache/**
+      - go.mod
+      - go.sum
+      - versions.env
+      - .github/workflows/e2e-dynamiccache.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: kind + auth-operator
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Load tool versions
+        run: grep -E '^[A-Z_]+=' versions.env >> "$GITHUB_ENV"
+
+      - name: Create kind cluster
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
+        with:
+          version: ${{ env.KIND_VERSION }}
+          kubectl_version: ${{ env.KUBECTL_VERSION }}
+          cluster_name: dynamiccache-e2e
+          wait: 300s
+
+      - name: Run e2e suite
+        env:
+          E2E_USE_EXISTING_CLUSTER: "true"
+        run: bash e2e/dynamiccache/kind-e2e.sh
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dynamiccache-e2e-artifacts
+          path: e2e/dynamiccache/artifacts/
+          retention-days: 7

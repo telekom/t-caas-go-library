@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2026 Deutsche Telekom AG
+#
+# SPDX-License-Identifier: CC0-1.0
+
+# See https://reuse.software/spec-3.2/#reusetoml for specification
+version = 1
+
+# Go source files - Apache-2.0 (every .go file also carries an in-file SPDX header)
+[[annotations]]
+path = ["**/*.go"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Deutsche Telekom AG"
+SPDX-License-Identifier = "Apache-2.0"
+
+# GitHub workflows - Apache-2.0
+[[annotations]]
+path = [".github/workflows/*.yml"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Deutsche Telekom AG"
+SPDX-License-Identifier = "Apache-2.0"
+
+# GitHub metadata - CC0-1.0
+[[annotations]]
+path = [
+  ".github/*.yml",
+  ".github/*.md",
+  ".github/ISSUE_TEMPLATE/**",
+  ".github/CODEOWNERS"
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Deutsche Telekom AG"
+SPDX-License-Identifier = "CC0-1.0"
+
+# Configuration files - CC0-1.0
+[[annotations]]
+path = [
+  ".editorconfig",
+  ".gitignore",
+  ".golangci.yml",
+  "Makefile",
+  "versions.env",
+  "NOTICE",
+  "go.mod",
+  "go.sum",
+  "**/go.mod",
+  "**/go.sum"
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Deutsche Telekom AG"
+SPDX-License-Identifier = "CC0-1.0"
+
+# Documentation and test data - CC0-1.0
+[[annotations]]
+path = [
+  "*.md",
+  "docs/**",
+  "examples/**/*.md",
+  "pkg/**/*.md",
+  "**/testdata/**"
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Deutsche Telekom AG"
+SPDX-License-Identifier = "CC0-1.0"

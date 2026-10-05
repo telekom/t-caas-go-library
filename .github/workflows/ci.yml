@@ -1,0 +1,145 @@
+# SPDX-FileCopyrightText: 2026 Deutsche Telekom AG
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Tidy & Vet
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Configure private module access
+        if: github.event.repository.private
+        run: |
+          gh auth setup-git
+          echo 'GOPRIVATE=github.com/telekom/t-caas-go-library' >> "$GITHUB_ENV"
+
+      - name: Check go.mod is tidy
+        run: make tidy-check
+
+      - name: Check formatting
+        run: |
+          make fmt
+          git diff --exit-code
+
+      - name: Vet
+        run: make vet
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Configure private module access
+        if: github.event.repository.private
+        run: |
+          gh auth setup-git
+          echo 'GOPRIVATE=github.com/telekom/t-caas-go-library' >> "$GITHUB_ENV"
+
+      - name: golangci-lint
+        run: make lint
+
+  test:
+    name: Test (unit + envtest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Configure private module access
+        if: github.event.repository.private
+        run: |
+          gh auth setup-git
+          echo 'GOPRIVATE=github.com/telekom/t-caas-go-library' >> "$GITHUB_ENV"
+
+      - name: Test
+        run: make test
+
+      - name: Fuzz smoke tests
+        run: make fuzz
+
+      - name: Coverage summary
+        run: |
+          {
+            echo '### Coverage'
+            echo '```'
+            find . -name cover.out -not -path './bin/*' -print | while read -r profile; do
+              echo "$profile"
+              (cd "$(dirname "$profile")" && go tool cover -func=cover.out | tail -n 1)
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage
+          path: "**/cover.out"
+          retention-days: 14
+
+  examples:
+    name: Examples
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Configure private module access
+        if: github.event.repository.private
+        run: |
+          gh auth setup-git
+          echo 'GOPRIVATE=github.com/telekom/t-caas-go-library' >> "$GITHUB_ENV"
+
+      - name: Build and test examples
+        run: make test-examples

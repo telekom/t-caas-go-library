@@ -1,0 +1,18 @@
+T-CaaS Go Library
+Copyright 2026 Deutsche Telekom AG
+
+The cross-namespace List merge in
+pkg/controllerruntime/dynamiccache/reader.go is adapted from
+sigs.k8s.io/controller-runtime/pkg/cache/multi_namespace_cache.go.
+Copyright 2019 The Kubernetes Authors.
+Licensed under the Apache License, Version 2.0.
+Upstream: https://github.com/kubernetes-sigs/controller-runtime
+
+The OpenSSF Scorecard workflow is adapted from the OpenSSF Scorecard
+analysis workflow. Copyright 2020 OpenSSF Scorecard Authors.
+Licensed under the Apache License, Version 2.0.
+Upstream: https://github.com/ossf/scorecard
+
+References to Flux packages are upstream recommendations, not copied
+Flux implementations. Internal provenance describes generic shared
+patterns only; no internal schemas or production fixtures are included.

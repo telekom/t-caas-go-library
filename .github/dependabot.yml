@@ -1,0 +1,58 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: deps
+    labels: [dependencies, go]
+    groups:
+      kubernetes:
+        patterns: ["k8s.io/*", "sigs.k8s.io/*"]
+      opentelemetry:
+        patterns: ["go.opentelemetry.io/*"]
+      prometheus:
+        patterns: ["github.com/prometheus/*"]
+      testing:
+        patterns: ["github.com/onsi/*", "github.com/stretchr/testify"]
+      go-other:
+        patterns: ["*"]
+        exclude-patterns:
+          - "k8s.io/*"
+          - "sigs.k8s.io/*"
+          - "go.opentelemetry.io/*"
+          - "github.com/prometheus/*"
+          - "github.com/onsi/*"
+          - "github.com/stretchr/testify"
+
+  - package-ecosystem: gomod
+    directory: /pkg/redfish
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+    labels: [dependencies, go]
+
+  - package-ecosystem: gomod
+    directory: /examples/redfish
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+    labels: [dependencies, go]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    labels: [dependencies, github-actions]
+    groups:
+      actions:
+        patterns: ["*"]

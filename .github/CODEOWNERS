@@ -1,0 +1,5 @@
+# Default owners for everything in the repo
+* @telekom/t-caas
+
+# CI/CD changes
+/.github/ @telekom/t-caas

@@ -1,0 +1,33 @@
+# Binaries and locally installed tools
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binaries and coverage output
+*.test
+cover.out
+**/cover.out
+*.out
+coverage.*
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Editor and OS files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+.env
+
+# Scratch / agent workspace
+.tmp/
+
+# dynamiccache kind E2E tool downloads and failure dumps
+e2e/**/.tools/
+e2e/**/artifacts/

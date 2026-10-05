@@ -1,0 +1,95 @@
+# SPDX-FileCopyrightText: 2026 Deutsche Telekom AG
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Compatibility matrix for pkg/controllerruntime/dynamiccache. The module requires
+# controller-runtime v0.25 / k8s.io v0.37 (tested by ci.yml); this workflow
+# re-runs the package's envtest suite with the dependencies temporarily
+# downgraded to the source floor (controller-runtime v0.24 needs client-go
+# v0.36's tools/cache DoneChecker) and, non-blocking, against
+# controller-runtime@main to surface upstream breakage early.
+name: dynamiccache compat
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - pkg/controllerruntime/dynamiccache/**
+      - go.mod
+      - go.sum
+      - versions.env
+      - .github/workflows/dynamiccache.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - pkg/controllerruntime/dynamiccache/**
+      - go.mod
+      - go.sum
+      - versions.env
+      - .github/workflows/dynamiccache.yml
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  compat:
+    name: compat (controller-runtime ${{ matrix.cr }})
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.canary }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Source floor. Extend with new pinned pairs as needed.
+          - cr: v0.24.1
+            k8s: v0.36.3
+            envtest-k8s: 1.36.2
+            canary: false
+          # Canary: k8s.io follows controller-runtime's own requirements (MVS).
+          - cr: main
+            k8s: ""
+            envtest-k8s: latest
+            canary: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install setup-envtest
+        run: make envtest
+
+      - name: Pin controller-runtime ${{ matrix.cr }}
+        env:
+          CR_VERSION: ${{ matrix.cr }}
+          K8S_VERSION: ${{ matrix.k8s }}
+        run: |
+          if [ -z "${K8S_VERSION}" ]; then
+            go get "sigs.k8s.io/controller-runtime@${CR_VERSION}"
+          else
+            go get "sigs.k8s.io/controller-runtime@${CR_VERSION}" \
+              "k8s.io/api@${K8S_VERSION}" "k8s.io/apimachinery@${K8S_VERSION}" "k8s.io/client-go@${K8S_VERSION}"
+          fi
+          go list -m sigs.k8s.io/controller-runtime k8s.io/client-go | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Test pkg/controllerruntime/dynamiccache
+        env:
+          ENVTEST_K8S: ${{ matrix.envtest-k8s }}
+        run: |
+          if [ "${ENVTEST_K8S}" = "latest" ]; then ENVTEST_K8S=""; fi
+          # shellcheck disable=SC2086 # empty version selects the latest assets
+          KUBEBUILDER_ASSETS="$(bin/setup-envtest use ${ENVTEST_K8S} --bin-dir "$PWD/bin" -p path)"
+          export KUBEBUILDER_ASSETS
+          CGO_ENABLED=1 go test -race -count=1 ./pkg/controllerruntime/dynamiccache/...
