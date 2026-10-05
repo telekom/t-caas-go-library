@@ -37,11 +37,12 @@ The guide records exact imports, semantic pitfalls and migration hints.
 | `pkg/redfish/redfishtest` (separate module) | Stateful synthetic Redfish server with synchronized fault injection | available |
 | [`pkg/controllerruntime/dynamiccache`](pkg/controllerruntime/dynamiccache/README.md) | controller-runtime `cache.Cache` that watches only namespaces matching a label selector, with dynamic per-namespace informers and synthetic deletes on deselection | available |
 
-All entries above are available on main (snapshot 2026-10-05).
-`conditions`, `tracing`, `metrics`, `envtestutil` and lifecycle/config
-packages were closed as redundant; crhelpers and kubetest were never opened.
-Use the [recommended upstream packages](docs/upstream-libraries.md), not those
-branches. Only the justified deltas above are available.
+All entries above are available on main.
+`conditions`, `tracing`, `metrics`, `envtestutil`, lifecycle/config,
+controller-helper and Kubernetes-test wrappers are intentionally not provided
+because upstream libraries already cover those needs.
+Use the [recommended upstream packages](docs/upstream-libraries.md).
+Only the justified deltas above are available.
 
 Available packages have godoc, unit tests, `Example` tests and a runnable sample
 under [`examples/`](examples/).
