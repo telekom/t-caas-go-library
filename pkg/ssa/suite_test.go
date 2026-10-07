@@ -6,19 +6,19 @@ package ssa_test
 
 import (
 	"context"
-	"errors"
+	"os"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/telekom/t-caas-go-library/pkg/ssa/internal/ssatest"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
 var (
 	testCtx   = context.Background()
-	testEnv   *ssatest.Env
+	testEnv   *envtest.Environment
 	k8sClient client.Client
 )
 
@@ -28,20 +28,47 @@ func TestSSA(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	var err error
-	testEnv, err = ssatest.Start()
-	if errors.Is(err, ssatest.ErrNoAssets) {
-		Skip(err.Error())
+	if os.Getenv("KUBEBUILDER_ASSETS") == "" {
+		Skip("KUBEBUILDER_ASSETS is not set; run the tests via make test")
 	}
+	testEnv = &envtest.Environment{}
+	cfg, err := testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
-	k8sClient = testEnv.Client
+	k8sClient, err = client.New(cfg, client.Options{})
+	Expect(err).NotTo(HaveOccurred())
 })
 
 var _ = AfterSuite(func() {
-	Expect(testEnv.Stop()).To(Succeed())
+	if testEnv != nil {
+		Expect(testEnv.Stop()).To(Succeed())
+	}
 })
 
 // counting returns a fault-injectable client that counts Apply calls.
-func counting() *ssatest.Client {
-	return &ssatest.Client{Client: k8sClient}
+func counting() *countingClient {
+	return &countingClient{Client: k8sClient}
+}
+
+type countingClient struct {
+	client.Client
+	ApplyCalls int
+	OnGet      func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error
+	OnApply    func(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error
+}
+
+// Get implements client.Client.
+func (c *countingClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if c.OnGet != nil {
+		return c.OnGet(ctx, key, obj, opts...)
+	}
+	return c.Client.Get(ctx, key, obj, opts...)
+}
+
+// Apply implements client.Client.
+func (c *countingClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	c.ApplyCalls++
+	if c.OnApply != nil {
+		return c.OnApply(ctx, obj, opts...)
+	}
+	return c.Client.Apply(ctx, obj, opts...)
 }
