@@ -656,7 +656,7 @@ func (a *namespaceInformerAdapter) HasSynced() bool {
 
 // HasSyncedChecker implements cache.Informer.
 func (a *namespaceInformerAdapter) HasSyncedChecker() toolscache.DoneChecker {
-	return newPollChecker("dynamiccache namespaces", a.dc.nsInformer.HasSynced, a.dc.doneCh)
+	return a.dc.nsInformer.HasSyncedChecker()
 }
 
 // IsStopped implements cache.Informer.
