@@ -10,10 +10,12 @@ package dynamiccache
 // See NOTICE for the upstream source and attribution.
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -147,10 +149,7 @@ func (dc *dynamicCache) List(ctx context.Context, list client.ObjectList, opts .
 	}
 
 	dc.mu.RLock()
-	entries := make([]*nsEntry, 0, len(dc.nsEntries))
-	for _, e := range dc.nsEntries {
-		entries = append(entries, e)
-	}
+	entries := slices.Collect(maps.Values(dc.nsEntries))
 	// A cross-namespace List must not silently omit a selected namespace whose
 	// cache is not running; surface the degradation as a transient error.
 	var notReady string
@@ -165,7 +164,7 @@ func (dc *dynamicCache) List(ctx context.Context, list client.ObjectList, opts .
 		return &ErrNamespaceNotReady{Namespace: notReady}
 	}
 	// Deterministic order across calls.
-	sort.Slice(entries, func(i, j int) bool { return entries[i].name < entries[j].name })
+	slices.SortFunc(entries, func(a, b *nsEntry) int { return cmp.Compare(a.name, b.name) })
 
 	limitSet := listOpts.Limit > 0
 	remaining := listOpts.Limit
@@ -290,8 +289,8 @@ func (dc *dynamicCache) listNamespaces(list client.ObjectList, listOpts client.L
 			items = append(items, ns.DeepCopy())
 		}
 	}
-	sort.Slice(items, func(i, j int) bool {
-		return items[i].(client.Object).GetName() < items[j].(client.Object).GetName()
+	slices.SortFunc(items, func(a, b runtime.Object) int {
+		return cmp.Compare(a.(client.Object).GetName(), b.(client.Object).GetName())
 	})
 	if listOpts.Limit > 0 && int64(len(items)) > listOpts.Limit {
 		items = items[:listOpts.Limit]
