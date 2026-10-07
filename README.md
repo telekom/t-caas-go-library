@@ -363,9 +363,10 @@ must avoid those no-op admission requests.
 
 Auth-operator keeps its RBAC comparators, canonicalization,
 label-selection policy and field-manager defaults locally, replacing the
-cached Get/compare/apply logic with `ssa.Applier`. k8s-breakglass uses
-`Applier` / `StatusApplier` in its generic cached apply/status helpers,
-keeping generated Extract functions, status builders and empty-list handling.
+cached Get/compare/apply logic with `ssa.Applier`. k8s-breakglass reuses shared
+apply-result types/constants in its object patch helper and `StatusApplier`
+in its generated status helper; object Get/compare/Apply logic remains local.
+It keeps generated Extract functions, status builders and empty-list handling.
 Both can instead use Flux for manifest-based paths where server-evaluated
 state is required. No shared RBAC convenience package is provided: the
 source-specific descriptors were only demonstrated in one consumer.
