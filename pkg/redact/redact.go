@@ -9,9 +9,10 @@
 package redact
 
 import (
+	"cmp"
 	"net/url"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -103,7 +104,7 @@ func Wrap(err error, rawURLs ...string) error {
 				}
 			}
 		}
-		sort.SliceStable(candidates, func(i, j int) bool { return len(candidates[i]) > len(candidates[j]) })
+		slices.SortStableFunc(candidates, func(a, b string) int { return cmp.Compare(len(b), len(a)) })
 		// One replacement pass prevents a credential substring from corrupting
 		// an already-sanitized replacement.
 		pairs := make([]string, 0, 2*len(candidates))

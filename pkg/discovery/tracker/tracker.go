@@ -5,6 +5,7 @@
 package tracker
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -191,13 +192,7 @@ func canonicalize(snapshot Snapshot) {
 			slices.Sort(resources[i].Categories)
 		}
 		slices.SortFunc(resources, func(a, b metav1.APIResource) int {
-			if a.Name < b.Name {
-				return -1
-			}
-			if a.Name > b.Name {
-				return 1
-			}
-			return 0
+			return cmp.Compare(a.Name, b.Name)
 		})
 	}
 }

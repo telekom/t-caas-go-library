@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -153,8 +154,7 @@ func (fi *fanoutInformer) addNamespace(ctx context.Context, namespace string, c 
 	}
 
 	fi.mu.Lock()
-	handlers := make([]*fanoutRegistration, len(fi.handlers))
-	copy(handlers, fi.handlers)
+	handlers := slices.Clone(fi.handlers)
 	fi.mu.Unlock()
 	for _, h := range handlers {
 		if err := h.registerOn(ctx, namespace, st.inf); err != nil {
@@ -193,8 +193,7 @@ func (fi *fanoutInformer) applyIndexers(namespace string, st *nsInformerState) e
 func (fi *fanoutInformer) dropNamespace(namespace string) {
 	fi.mu.Lock()
 	delete(fi.perNS, namespace)
-	handlers := make([]*fanoutRegistration, len(fi.handlers))
-	copy(handlers, fi.handlers)
+	handlers := slices.Clone(fi.handlers)
 	fi.mu.Unlock()
 	for _, h := range handlers {
 		h.dropNamespace(namespace)
@@ -223,8 +222,7 @@ func (fi *fanoutInformer) namespaceSnapshotReady(namespace string) bool {
 // stateful custom handlers must tolerate this relaxed ordering.
 func (fi *fanoutInformer) deliverSyntheticDeletes(namespace string, objs []client.Object) {
 	fi.mu.Lock()
-	handlers := make([]*fanoutRegistration, len(fi.handlers))
-	copy(handlers, fi.handlers)
+	handlers := slices.Clone(fi.handlers)
 	fi.mu.Unlock()
 
 	for _, h := range handlers {
@@ -280,10 +278,7 @@ func (fi *fanoutInformer) addHandler(
 		return nil, fmt.Errorf("dynamiccache: informer for %s was removed", fi.gvk)
 	}
 	fi.handlers = append(fi.handlers, reg)
-	perNS := make(map[string]*nsInformerState, len(fi.perNS))
-	for ns, st := range fi.perNS {
-		perNS[ns] = st
-	}
+	perNS := maps.Clone(fi.perNS)
 	fi.mu.Unlock()
 
 	// The caller is told the watch is established, so registration failures
@@ -467,10 +462,7 @@ func (r *fanoutRegistration) dropNamespace(namespace string) {
 func (r *fanoutRegistration) remove(perNS map[string]cache.Informer) error {
 	r.mu.Lock()
 	r.removed = true
-	regs := make(map[string]toolscache.ResourceEventHandlerRegistration, len(r.regs))
-	for ns, reg := range r.regs {
-		regs[ns] = reg
-	}
+	regs := maps.Clone(r.regs)
 	r.regs = map[string]toolscache.ResourceEventHandlerRegistration{}
 	r.mu.Unlock()
 
@@ -664,7 +656,7 @@ func (a *namespaceInformerAdapter) HasSynced() bool {
 
 // HasSyncedChecker implements cache.Informer.
 func (a *namespaceInformerAdapter) HasSyncedChecker() toolscache.DoneChecker {
-	return newPollChecker("dynamiccache namespaces", a.dc.nsInformer.HasSynced, a.dc.doneCh)
+	return a.dc.nsInformer.HasSyncedChecker()
 }
 
 // IsStopped implements cache.Informer.

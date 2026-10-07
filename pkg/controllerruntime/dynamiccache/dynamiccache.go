@@ -196,7 +196,6 @@ func New(config *rest.Config, cacheOpts cache.Options, opts Options) (cache.Cach
 	dc := &dynamicCache{
 		config:       config,
 		cacheOpts:    cacheOpts,
-		selector:     opts.NamespaceSelector,
 		scheme:       cacheOpts.Scheme,
 		mapper:       cacheOpts.Mapper,
 		newCache:     newCache,

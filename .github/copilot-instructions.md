@@ -6,7 +6,7 @@ Repository conventions for GitHub Copilot. Keep in sync with `AGENTS.md`.
 
 `github.com/telekom/t-caas-go-library` provides shared, generic Go helpers for
 Telekom T-CaaS Kubernetes operators (first consumers: `telekom/auth-operator`,
-`telekom/k8s-breakglass`). This repository will be **public** — treat every
+`telekom/k8s-breakglass`). This repository is **public** — treat every
 file as open source.
 
 ## Quick Start

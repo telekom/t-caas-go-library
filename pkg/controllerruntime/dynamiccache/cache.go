@@ -8,13 +8,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"reflect"
+	"slices"
 	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -32,7 +33,6 @@ import (
 type dynamicCache struct {
 	config    *rest.Config
 	cacheOpts cache.Options // template for per-namespace caches; DefaultNamespaces is set per namespace
-	selector  labels.Selector
 	scheme    *runtime.Scheme
 	mapper    apimeta.RESTMapper
 	newCache  cache.NewCacheFunc
@@ -166,10 +166,7 @@ func (dc *dynamicCache) Start(ctx context.Context) error {
 func (dc *dynamicCache) ensureNamespace(name string) {
 	dc.mu.Lock()
 	if entry, ok := dc.nsEntries[name]; ok {
-		fanouts := make([]*fanoutInformer, 0, len(dc.informers))
-		for _, fi := range dc.informers {
-			fanouts = append(fanouts, fi)
-		}
+		fanouts := slices.Collect(maps.Values(dc.informers))
 		dc.mu.Unlock()
 		// Re-wire fan-outs on every event/resync: addNamespace is an
 		// idempotent repair, so informer, indexer or handler registrations
@@ -201,10 +198,7 @@ func (dc *dynamicCache) ensureNamespace(name string) {
 	entryCtx, cancel := context.WithCancel(runCtx)
 	entry := &nsEntry{name: name, cache: c, ctx: entryCtx, cancel: cancel}
 	dc.nsEntries[name] = entry
-	fanouts := make([]*fanoutInformer, 0, len(dc.informers))
-	for _, fi := range dc.informers {
-		fanouts = append(fanouts, fi)
-	}
+	fanouts := slices.Collect(maps.Values(dc.informers))
 	dc.mu.Unlock()
 
 	go func() {
@@ -233,10 +227,7 @@ func (dc *dynamicCache) dropFailedEntry(name string, failed *nsEntry) {
 		return
 	}
 	delete(dc.nsEntries, name)
-	fanouts := make([]*fanoutInformer, 0, len(dc.informers))
-	for _, fi := range dc.informers {
-		fanouts = append(fanouts, fi)
-	}
+	fanouts := slices.Collect(maps.Values(dc.informers))
 	dc.mu.Unlock()
 
 	failed.cancel()
@@ -255,10 +246,7 @@ func (dc *dynamicCache) removeNamespace(name string) {
 		return
 	}
 	delete(dc.nsEntries, name)
-	fanouts := make([]*fanoutInformer, 0, len(dc.informers))
-	for _, fi := range dc.informers {
-		fanouts = append(fanouts, fi)
-	}
+	fanouts := slices.Collect(maps.Values(dc.informers))
 	dc.mu.Unlock()
 
 	// Snapshot the namespace's objects per watched type before stopping the
@@ -388,10 +376,7 @@ func (dc *dynamicCache) informerForGVK(
 		fi = newFanoutInformer(dc, gvk, obj)
 		dc.informers[key] = fi
 	}
-	entries := make([]*nsEntry, 0, len(dc.nsEntries))
-	for _, e := range dc.nsEntries {
-		entries = append(entries, e)
-	}
+	entries := slices.Collect(maps.Values(dc.nsEntries))
 	dc.mu.Unlock()
 
 	for _, e := range entries {
@@ -424,10 +409,7 @@ func (dc *dynamicCache) RemoveInformer(ctx context.Context, obj client.Object) e
 	if ok {
 		delete(dc.informers, key)
 	}
-	entries := make([]*nsEntry, 0, len(dc.nsEntries))
-	for _, e := range dc.nsEntries {
-		entries = append(entries, e)
-	}
+	entries := slices.Collect(maps.Values(dc.nsEntries))
 	dc.mu.Unlock()
 
 	if fi != nil {
@@ -463,10 +445,7 @@ func (dc *dynamicCache) IndexField(ctx context.Context, obj client.Object, field
 
 	dc.mu.Lock()
 	dc.fieldIdxes = append(dc.fieldIdxes, fieldIndex{obj: obj, field: field, extract: extractValue})
-	entries := make([]*nsEntry, 0, len(dc.nsEntries))
-	for _, e := range dc.nsEntries {
-		entries = append(entries, e)
-	}
+	entries := slices.Collect(maps.Values(dc.nsEntries))
 	dc.mu.Unlock()
 
 	var errs []error
@@ -505,10 +484,7 @@ func (dc *dynamicCache) WaitForCacheSync(ctx context.Context) bool {
 				return false, nil
 			}
 		}
-		entries := make([]*nsEntry, 0, len(dc.nsEntries))
-		for _, e := range dc.nsEntries {
-			entries = append(entries, e)
-		}
+		entries := slices.Collect(maps.Values(dc.nsEntries))
 		dc.mu.RUnlock()
 		for _, e := range entries {
 			waitCtx, cancel := context.WithTimeout(ctx, subCacheSyncProbeTimeout)
