@@ -63,11 +63,20 @@ Use synthetic credentials and image URLs only.
 
 ## Adoption / provenance
 
-The fake generalizes repeated test plumbing without copying real BMC responses:
+No external consumer was identified in the
+[2026-10-07 consumer audit](../README.md#consumer-audit-and-retention).
+BOOTy [#574](https://github.com/telekom/BOOTy/pull/574) tried and rejected adoption
+because virtual-media insertion, boot defaults and collection names differ.
+Its existing fixtures must not be replaced without preserving those contracts.
+The audit recommends future nested-module deprecation unless a compatible
+consumer is demonstrated; no API is deprecated or removed by that assessment.
 
-- BOOTy: replace `test/e2e/redfish/mock_server.go:46` (`NewMockServer`) and its
-  state inspection helpers with `redfishtest.New` / `Snapshot`; update tests to
-  discover standard manager virtual-media links rather than assuming a fixed URI.
+The original extraction targets below are provenance and possible future
+use, **not** evidence of current adoption. The fake generalizes test plumbing
+without copying real BMC responses:
+
+- BOOTy: its `test/e2e/redfish/mock_server.go` remains consumer-local.
+  `redfishtest.New` / `Snapshot` are not a semantics-preserving drop-in.
 - An internal bare-metal provisioning operator: replace its generic HTTP fixture constructor
   with this fake; keep vendor-policy fixtures
   private. Production connection and media helpers should adopt the standard

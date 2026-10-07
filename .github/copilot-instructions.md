@@ -6,7 +6,9 @@ Repository conventions for GitHub Copilot. Keep in sync with `AGENTS.md`.
 
 `github.com/telekom/t-caas-go-library` provides shared, generic Go helpers for
 Telekom T-CaaS Kubernetes operators (first consumers: `telekom/auth-operator`,
-`telekom/k8s-breakglass`). This repository is **public** — treat every
+`telekom/k8s-breakglass`). The [README package index](../README.md#packages) records
+verified imports and distinguishes pending adoption from merged consumers.
+This repository is **public** — treat every
 file as open source.
 
 ## Quick Start
@@ -59,7 +61,8 @@ upstream semantics. Never expose internal paths/hosts in public evidence.
    - at least one `Example` / `ExampleXxx` test;
    - a runnable sample in `examples/<name>/` (`package main`) with a test, built
      and tested by `make test-examples` in CI;
-   - an entry in the README package index.
+   - an entry in the README package index with verified consumers or an explicit
+     no-consumer assessment; do not count examples as external adoption.
 4. **Errors:** wrap with `fmt.Errorf("context: %w", err)`; never `%v` for errors.
    Export sentinel errors / typed errors where callers need `errors.Is/As`.
 5. **Logging:** context-aware only — `log.FromContext(ctx)` (controller-runtime

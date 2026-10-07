@@ -23,19 +23,19 @@ The guide records exact imports, semantic pitfalls and migration hints.
 
 ## Packages
 
-| Package | Purpose | Status |
-|---------|---------|--------|
-| `pkg/remoteclient` | Generation-fenced multi-cluster clients and Secret invalidation | available |
-| `pkg/netutil` | Overflow-checked arithmetic, bounded subdivision and shared address conventions, built on netip/netipx | available |
-| [`pkg/ssa`](pkg/ssa) | Cache-only no-op gate for typed Server-Side Apply; delegates writes to controller-runtime ([example](examples/ssa)) | available |
-| [`pkg/patch`](pkg/patch) | Thin optimistic-lock retry and finalizer adapters shared by multiple operators ([example](examples/patch)) | available |
-| [`pkg/certrotation`](pkg/certrotation) | Shared gating/readiness/SAN glue on [cert-controller](https://github.com/open-policy-agent/cert-controller) ([example](examples/certrotation)) | available |
-| `pkg/redact` | URL diagnostic redaction and UTF-8-safe truncation | available |
-| [`pkg/ratelimit`](pkg/ratelimit/README.md) | Bounded keyed limiter storage on x/time/rate | available |
-| [`pkg/discovery/tracker`](pkg/discovery/tracker) | Periodic discovery snapshots and CRD-watch change callbacks | available |
-| [`pkg/namespaceselector`](pkg/namespaceselector) | Live namespace label selectors with request-local memoization | available |
-| `pkg/redfish/redfishtest` (separate module) | Stateful synthetic Redfish server with synchronized fault injection | available |
-| [`pkg/controllerruntime/dynamiccache`](pkg/controllerruntime/dynamiccache/README.md) | controller-runtime `cache.Cache` that watches only namespaces matching a label selector, with dynamic per-namespace informers and synthetic deletes on deselection | available |
+| Package | Purpose | Verified consumers |
+|---------|---------|--------------------|
+| `pkg/remoteclient` | Generation-fenced multi-cluster clients and Secret invalidation | k8s-breakglass |
+| `pkg/netutil` | Overflow-checked arithmetic, bounded subdivision and shared address conventions, built on netip/netipx | Pending: network-operator [#396](https://github.com/telekom/das-schiff-network-operator/pull/396), whereabouts [#443](https://github.com/telekom/whereabouts/pull/443) |
+| [`pkg/ssa`](pkg/ssa) | Cache-only no-op gate for typed Server-Side Apply; delegates writes to controller-runtime ([example](examples/ssa)) | auth-operator, k8s-breakglass |
+| [`pkg/patch`](pkg/patch) | Thin optimistic-lock retry and finalizer adapters shared by multiple operators ([example](examples/patch)) | auth-operator, k8s-breakglass |
+| [`pkg/certrotation`](pkg/certrotation) | Shared gating/readiness/SAN glue on [cert-controller](https://github.com/open-policy-agent/cert-controller) ([example](examples/certrotation)) | auth-operator, k8s-breakglass; pending: whereabouts [#442](https://github.com/telekom/whereabouts/pull/442) |
+| `pkg/redact` | URL diagnostic redaction and UTF-8-safe truncation | k8s-breakglass; pending: BOOTy [#574](https://github.com/telekom/BOOTy/pull/574) |
+| [`pkg/ratelimit`](pkg/ratelimit/README.md) | Bounded keyed limiter storage on x/time/rate | auth-operator |
+| [`pkg/discovery/tracker`](pkg/discovery/tracker) | Periodic discovery snapshots and CRD-watch change callbacks | auth-operator |
+| [`pkg/namespaceselector`](pkg/namespaceselector) | Live namespace label selectors with request-local memoization | auth-operator |
+| `pkg/redfish/redfishtest` (separate module) | Stateful synthetic Redfish server with synchronized fault injection | None identified; see [assessment](#consumer-audit-and-retention) |
+| [`pkg/controllerruntime/dynamiccache`](pkg/controllerruntime/dynamiccache/README.md) | controller-runtime `cache.Cache` that watches only namespaces matching a label selector, with dynamic per-namespace informers and synthetic deletes on deselection | None identified; library examples/E2E only |
 
 All entries above are available on main.
 `conditions`, `tracing`, `metrics`, `envtestutil`, lifecycle/config,
@@ -43,6 +43,45 @@ controller-helper and Kubernetes-test wrappers are intentionally not provided
 because upstream libraries already cover those needs.
 Use the [recommended upstream packages](docs/upstream-libraries.md).
 Only the justified deltas above are available.
+
+### Consumer audit and retention
+
+Verified on **2026-10-07** using fresh public GitHub checkouts and import searches.
+The index counts imports outside this library, not examples, vendored copies,
+module requirements alone, or similarity to local consumer implementations.
+Pending PR imports are explicitly distinguished from merged adoption.
+
+| Source | Checked revision |
+|--------|------------------|
+| [auth-operator](https://github.com/telekom/auth-operator) main | `657cd97372f4` |
+| [k8s-breakglass](https://github.com/telekom/k8s-breakglass) main | `1538a87a8ced` |
+| [whereabouts](https://github.com/telekom/whereabouts) main | `49aad9054821` (no library imports); #443 `8803311318a6`, #442 `c69ee69e7a1f` |
+| [das-schiff-network-operator](https://github.com/telekom/das-schiff-network-operator) #396 | `3ff4c457c4ac` |
+| [BOOTy](https://github.com/telekom/BOOTy) main | `ecd9957d1cef` (no library imports); #574 `3fb623546041` |
+
+For packages with no merged consumer:
+
+- **netutil: keep.** Two checked adoption PRs contain actual imports and
+  behavioral characterization; this is pending adoption, not speculative API.
+- **dynamiccache: keep for its documented opt-in use case.** Runtime
+  namespace-label membership is not supplied by stock static namespace caches.
+  Its [package guide](pkg/controllerruntime/dynamiccache/README.md) and kind E2E
+  demonstrate integration with auth-operator-managed RBAC; auth-operator is
+  **not** itself a package consumer. Reassess before expanding the API if no
+  external adoption materializes.
+- **redfishtest: recommend deprecation in a future nested-module minor unless
+  a compatible external consumer is demonstrated first.** BOOTy #574 explicitly
+  rejected adoption: its Image-only virtual-media insertion implies
+  `Inserted=true`, and boot defaults/collection names also differ. Existing
+  examples and library tests are not external consumers. Earlier provisioning
+  fixture proposals are provenance, not verified adoption. Prefer gofish and
+  consumer-local `httptest` fixtures where these semantics differ.
+
+These are recommendations, not API removals or implemented deprecations.
+The selected public repositories and code search cannot prove absence of all
+external/private consumers. Recheck callers before any deprecation/removal and
+honor the [one-minor deprecation policy](#versioning); never remove exported API
+in a patch release.
 
 Available packages have godoc, unit tests, `Example` tests and a runnable sample
 under [`examples/`](examples/).
@@ -92,7 +131,8 @@ parsing, authentication, discovery or API calls.
   fencing, failed-refresh preservation, arbitrary cluster-to-Secret references
   (including many clusters per Secret), or explicit synchronous invalidation.
 
-The retained delta is shared lifecycle glue for **uncached** remote clients:
+The retained delta is shared lifecycle glue for **uncached** remote clients.
+The following call sites describe extraction provenance, not current imports:
 network-operator `controllers/sync/remote_client.go:48,87,99,112` and breakglass
 `pkg/cluster/cache.go:74,791,955,963,1103` both maintain remote credential/client
 registries and evict entries. Replace those portions with `Registry`, mapping
@@ -321,10 +361,10 @@ objects. `pkg/ssa` provides only the narrower cache-based ownership gate
 repeated in auth-operator and k8s-breakglass, for typed controller paths that
 must avoid those no-op admission requests.
 
-For adoption, auth-operator keeps its RBAC comparators, canonicalization,
+Auth-operator keeps its RBAC comparators, canonicalization,
 label-selection policy and field-manager defaults locally, replacing the
-cached Get/compare/apply logic with `ssa.Applier`. k8s-breakglass can replace
-its generic cached apply/status helpers with `Applier` / `StatusApplier`,
+cached Get/compare/apply logic with `ssa.Applier`. k8s-breakglass uses
+`Applier` / `StatusApplier` in its generic cached apply/status helpers,
 keeping generated Extract functions, status builders and empty-list handling.
 Both can instead use Flux for manifest-based paths where server-evaluated
 state is required. No shared RBAC convenience package is provided: the
@@ -373,6 +413,17 @@ gofish dependency to the root. Makefile checks discover and loop over all module
 coverage profiles and CI summaries are produced per module.
 
 ## Versioning
+
+**Post-v0.1.0 release assessment (2026-10-07):** do not tag v0.1.1 solely for
+[#5](https://github.com/telekom/t-caas-go-library/pull/5) and
+[#6](https://github.com/telekom/t-caas-go-library/pull/6). #5 preserves collection,
+ordering and redaction behavior while using stdlib snapshots/comparisons; its
+Namespace informer sync checker delegates directly upstream instead of polling.
+That small efficiency improvement affects dynamiccache, which has no identified
+external consumer. #6 removes library-internal SSA test scaffolding, not runtime
+code. No consumer-relevant correctness fix or exported API change was identified.
+Keep consumers on v0.1.0 until a consumer-relevant fix warrants a patch release.
+No tag is created by this assessment.
 
 The module uses [Semantic Versioning](https://semver.org/):
 
