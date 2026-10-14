@@ -3,7 +3,7 @@ module github.com/telekom/t-caas-go-library
 go 1.26.6
 
 require (
-	github.com/onsi/ginkgo/v2 v2.33.0
+	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0
 	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb
 	golang.org/x/time v0.16.0
