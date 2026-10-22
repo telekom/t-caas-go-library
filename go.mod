@@ -1,6 +1,6 @@
 module github.com/telekom/t-caas-go-library
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/onsi/ginkgo/v2 v2.33.1

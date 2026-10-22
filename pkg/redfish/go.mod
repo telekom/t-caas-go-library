@@ -1,5 +1,5 @@
 module github.com/telekom/t-caas-go-library/pkg/redfish
 
-go 1.26.9
+go 1.26.10
 
 require github.com/stmcginnis/gofish v0.27.0
