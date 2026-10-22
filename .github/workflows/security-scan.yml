@@ -21,6 +21,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  reporter-tests:
+    name: Security report tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: node --test .github/scripts/security-report.test.cjs
+
   govulncheck:
     name: govulncheck
     runs-on: ubuntu-latest
@@ -44,9 +51,14 @@ jobs:
           echo 'GOPRIVATE=github.com/telekom/t-caas-go-library' >> "$GITHUB_ENV"
 
       - name: Run govulncheck
+        id: scan
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: make vuln
+      - name: Report scan status
+        if: always() && steps.scan.outcome != 'success'
+        run: echo '::warning title=Security scan advisory::govulncheck reported findings or could not complete. See the scan logs.'
 
       - name: Check dependency licenses
         env:
@@ -75,7 +87,9 @@ jobs:
           go-version-file: go.mod
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        id: init
+        continue-on-error: true
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           languages: go
           build-mode: manual
@@ -87,9 +101,15 @@ jobs:
           (cd examples/redfish && go build -o /dev/null ./...)
 
       - name: Analyze
-        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        id: scan
+        if: steps.init.outcome == 'success'
+        continue-on-error: true
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           category: /language:go
+      - name: Report scan status
+        if: always() && (steps.init.outcome != 'success' || steps.scan.outcome != 'success')
+        run: echo '::warning title=Security scan advisory::CodeQL reported findings or could not complete. See the scan logs.'
 
   dependency-review:
     name: Dependency Review
@@ -105,7 +125,12 @@ jobs:
           persist-credentials: false
 
       - name: Dependency Review
+        id: scan
+        continue-on-error: true
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
-          comment-summary-in-pr: on-failure
+          comment-summary-in-pr: never
+      - name: Report scan status
+        if: always() && steps.scan.outcome != 'success'
+        run: echo '::warning title=Security scan advisory::Dependency review reported findings or could not complete. See the scan logs.'

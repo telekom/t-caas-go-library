@@ -73,6 +73,7 @@ jobs:
 
       - name: Pin controller-runtime ${{ matrix.cr }}
         env:
+          GOTOOLCHAIN: auto
           CR_VERSION: ${{ matrix.cr }}
           K8S_VERSION: ${{ matrix.k8s }}
         run: |
@@ -86,6 +87,7 @@ jobs:
 
       - name: Test pkg/controllerruntime/dynamiccache
         env:
+          GOTOOLCHAIN: auto
           ENVTEST_K8S: ${{ matrix.envtest-k8s }}
         run: |
           if [ "${ENVTEST_K8S}" = "latest" ]; then ENVTEST_K8S=""; fi

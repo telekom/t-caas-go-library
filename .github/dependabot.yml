@@ -2,9 +2,11 @@ version: 2
 updates:
   - package-ecosystem: gomod
     directory: /
+    allow:
+      - dependency-type: all
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
+      interval: daily
+    open-pull-requests-limit: 20
     commit-message:
       prefix: deps
     labels: [dependencies, go]
@@ -29,18 +31,22 @@ updates:
 
   - package-ecosystem: gomod
     directory: /pkg/redfish
+    allow:
+      - dependency-type: all
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: daily
+    open-pull-requests-limit: 20
     commit-message:
       prefix: deps
     labels: [dependencies, go]
 
   - package-ecosystem: gomod
     directory: /examples/redfish
+    allow:
+      - dependency-type: all
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: daily
+    open-pull-requests-limit: 20
     commit-message:
       prefix: deps
     labels: [dependencies, go]
@@ -48,8 +54,8 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: daily
+    open-pull-requests-limit: 20
     commit-message:
       prefix: ci
     labels: [dependencies, github-actions]

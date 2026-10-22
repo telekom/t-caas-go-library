@@ -2,6 +2,25 @@
 
 Shared Go helpers for Telekom T-CaaS Kubernetes operators.
 
+## Dependency and security maintenance
+
+Dependabot checks all three Go modules daily, including indirect dependencies,
+and SHA-pinned GitHub Actions. The Redfish module and its example are tracked
+separately because the example uses a local module replacement; keep their
+gofish requirements consistent.
+
+Dependabot does not support arbitrary version pins in `versions.env`, Makefiles,
+shell scripts or workflow inputs. Tool pins still require coordinated updates;
+adding a tool pin there does not make it Dependabot-managed.
+
+Vulnerability scans, CodeQL analysis and dependency review are advisory. One
+updated security comment per PR includes the current commit, scan warnings and
+links to complete logs. Build, test, lint, REUSE and license checks remain blocking.
+The default-branch reporting workflow handles Dependabot and fork PRs without
+giving their code a write token: it reads GitHub job metadata and annotations,
+never PR code or executable artifacts. It becomes active after merging to the
+default branch.
+
 `github.com/telekom/t-caas-go-library` collects small, generic, well-tested
 building blocks that were previously duplicated across operators such as
 [telekom/auth-operator](https://github.com/telekom/auth-operator) and
