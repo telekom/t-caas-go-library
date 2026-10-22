@@ -6,4 +6,4 @@ require github.com/telekom/t-caas-go-library/pkg/redfish v0.1.0
 
 replace github.com/telekom/t-caas-go-library/pkg/redfish => ../../pkg/redfish
 
-require github.com/stmcginnis/gofish v0.26.0
+require github.com/stmcginnis/gofish v0.27.0
