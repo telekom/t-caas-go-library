@@ -23,7 +23,6 @@ SPDX-License-Identifier = "Apache-2.0"
 [[annotations]]
 path = [
   ".github/*.yml",
-  ".github/renovate.json",
   ".github/*.md",
   ".github/ISSUE_TEMPLATE/**",
   ".github/CODEOWNERS"
