@@ -10,8 +10,23 @@ separately because the example uses a local module replacement; keep their
 gofish requirements consistent.
 
 Dependabot does not support arbitrary version pins in `versions.env`, Makefiles,
-shell scripts or workflow inputs. Tool pins still require coordinated updates;
-adding a tool pin there does not make it Dependabot-managed.
+shell scripts or workflow inputs. The hosted Renovate companion tracks annotated
+tool versions, envtest assets, Helm/kind/kubectl and the auth-operator test chart
+instead, without duplicating normal Dependabot module/Action updates. Native
+Go handling keeps the supported compiler minor patched and uses Go-proxy
+resolution for any untagged OPA submodule requirements.
+
+Authorize the Renovate App for this repository before relying on that companion;
+the configuration does not install or authorize it. No automatic merging is
+enabled. CI validates the configuration under Node 24 with a pinned Renovate
+release and tests real extraction, atomic tag/digest replacement, ownership
+rules and nested-module lookup. New unsupported version literals need a
+`renovate: datasource=... depName=...` annotation immediately above the value;
+verify extraction rather than merely adding a comment.
+
+Issues are never closed for inactivity. The stale workflow was disabled while
+this source policy is reviewed; it may be re-enabled for labeling after merge.
+Close reports only after explicit triage, not a timeout.
 
 Vulnerability scans, CodeQL analysis and dependency review are advisory. One
 updated security comment per PR includes the current commit, scan warnings and
