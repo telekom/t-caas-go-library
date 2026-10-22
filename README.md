@@ -9,20 +9,12 @@ and SHA-pinned GitHub Actions. The Redfish module and its example are tracked
 separately because the example uses a local module replacement; keep their
 gofish requirements consistent.
 
-Dependabot does not support arbitrary version pins in `versions.env`, Makefiles,
-shell scripts or workflow inputs. The hosted Renovate companion tracks annotated
-tool versions, envtest assets, Helm/kind/kubectl and the auth-operator test chart
-instead, without duplicating normal Dependabot module/Action updates. Native
-Go handling keeps the supported compiler minor patched and uses Go-proxy
-resolution for any untagged OPA submodule requirements.
-
-Authorize the Renovate App for this repository before relying on that companion;
-the configuration does not install or authorize it. No automatic merging is
-enabled. CI validates the configuration under Node 24 with a pinned Renovate
-release and tests real extraction, atomic tag/digest replacement, ownership
-rules and nested-module lookup. New unsupported version literals need a
-`renovate: datasource=... depName=...` annotation immediately above the value;
-verify extraction rather than merely adding a comment.
+GitHub Dependabot is the only dependency updater. It does not support arbitrary
+version pins in `versions.env`, Makefiles, shell scripts or workflow inputs.
+Review tool versions, envtest assets, Helm/kind/kubectl and the auth-operator test
+chart manually alongside module updates. Keep duplicated pins consistent and
+verify the actual upstream artifacts; a successful Dependabot scan does not
+establish coverage for these unsupported formats.
 
 Issues are never closed for inactivity. The stale workflow was disabled while
 this source policy is reviewed; it may be re-enabled for labeling after merge.
