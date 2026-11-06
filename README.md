@@ -9,6 +9,10 @@ and SHA-pinned GitHub Actions. The Redfish module and its example are tracked
 separately because the example uses a local module replacement; keep their
 gofish requirements consistent.
 
+The `CI Gate` workflow merges a Dependabot PR once every other check on it has
+passed, then dispatches the main-branch workflows a merge would normally start.
+Semver-major updates other than GitHub Actions wait for a maintainer.
+
 GitHub Dependabot is the only dependency updater. It does not support arbitrary
 version pins in `versions.env`, Makefiles, shell scripts or workflow inputs.
 Review tool versions, envtest assets, Helm/kind/kubectl and the auth-operator test
