@@ -15,7 +15,7 @@ GOVULNCHECK ?= $(LOCALBIN)/govulncheck
 GO_LICENSES ?= $(LOCALBIN)/go-licenses
 
 COVERPROFILE ?= cover.out
-MODULES := $(sort $(patsubst %/go.mod,%,$(shell find . -name go.mod -not -path './bin/*' -not -path './vendor/*')))
+MODULES := $(sort $(patsubst %/go.mod,%,$(shell find . -name go.mod -not -path './bin/*' -not -path './vendor/*' -not -path './hack/tools/*')))
 
 ##@ General
 
@@ -110,39 +110,25 @@ licenses: go-licenses ## Check all modules' production and test dependency licen
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
 
+# Tool versions are pinned by tool directives in hack/tools/go.mod and, for
+# golangci-lint, its own module hack/tools/golangci-lint/go.mod (Dependabot-tracked).
 .PHONY: golangci-lint
 golangci-lint: $(LOCALBIN) ## Install pinned golangci-lint into ./bin.
-	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION),github.com/golangci/golangci-lint/v2)
+	go -C hack/tools/golangci-lint build -o $(GOLANGCI_LINT) github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 
 .PHONY: envtest
 envtest: $(LOCALBIN) ## Install pinned setup-envtest into ./bin.
-	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION),sigs.k8s.io/controller-runtime/tools/setup-envtest)
+	go -C hack/tools build -o $(ENVTEST) sigs.k8s.io/controller-runtime/tools/setup-envtest
 
 .PHONY: govulncheck
 govulncheck: $(LOCALBIN) ## Install pinned govulncheck into ./bin.
-	$(call go-install-tool,$(GOVULNCHECK),golang.org/x/vuln/cmd/govulncheck,$(GOVULNCHECK_VERSION),golang.org/x/vuln)
+	go -C hack/tools build -o $(GOVULNCHECK) golang.org/x/vuln/cmd/govulncheck
 
 .PHONY: go-licenses
 go-licenses: $(LOCALBIN) ## Install pinned go-licenses into ./bin.
-	$(call go-install-tool,$(GO_LICENSES),github.com/google/go-licenses/v2,$(GO_LICENSES_VERSION),github.com/google/go-licenses/v2)
+	go -C hack/tools build -o $(GO_LICENSES) github.com/google/go-licenses/v2
 
 .PHONY: clean
 clean: ## Remove local tools and coverage output.
 	rm -rf $(LOCALBIN)
 	@for module in $(MODULES); do rm -f $$module/$(COVERPROFILE); done
-
-# go-install-tool installs a Go binary into LOCALBIN unless the exact package/version is already present.
-# $1 - target binary path, $2 - package, $3 - version, $4 - module
-define go-install-tool
-@{ \
-set -e; \
-tool="$(1)"; package="$(2)"; version="$(3)"; module="$(4)"; \
-if [ -f "$${tool}" ] && \
-	go version -m "$${tool}" 2>/dev/null | grep -Eq "^[[:space:]]*path[[:space:]]+$${package}$$" && \
-	go version -m "$${tool}" 2>/dev/null | grep -Eq "^[[:space:]]*mod[[:space:]]+$${module}[[:space:]]+$${version}([[:space:]]|$$)"; then \
-	exit 0; \
-fi; \
-echo "Downloading $${package}@$${version}"; \
-GOBIN=$(LOCALBIN) go install "$${package}@$${version}"; \
-}
-endef

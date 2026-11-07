@@ -21,7 +21,8 @@ make test-examples # build + test examples/
 make lint          # golangci-lint v2 (pinned, installed into ./bin)
 ```
 
-Tool versions live in `versions.env` (shared by Makefile and CI).
+Go tool versions live in `hack/tools/go.mod` and `hack/tools/golangci-lint/go.mod`
+(Dependabot-tracked); other tool versions live in `versions.env` (shared by Makefile and CI).
 
 ## Layout
 

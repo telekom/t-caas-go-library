@@ -472,8 +472,10 @@ with generated notes.
 
 ## Development
 
-All tool versions are pinned in [`versions.env`](versions.env) and installed
-into `./bin` on demand.
+Go tools are pinned by `tool` directives in [`hack/tools/go.mod`](hack/tools/go.mod)
+(golangci-lint in its own module under `hack/tools/golangci-lint/`, both tracked by
+Dependabot); other tool versions are pinned in [`versions.env`](versions.env).
+Tools are installed into `./bin` on demand.
 
 ```bash
 make help          # list all targets
