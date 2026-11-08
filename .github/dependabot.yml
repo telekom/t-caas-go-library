@@ -23,6 +23,12 @@ updates:
     groups:
       go-tools:
         patterns: ["*"]
+      # In other repos Dependabot has raised security updates for tool-graph
+      # modules that `allow` does not list (e.g. telekom/whereabouts#492).
+      # Collect any such updates in these tool graphs in one PR.
+      go-tools-security:
+        applies-to: security-updates
+        patterns: ["*"]
 
   - package-ecosystem: gomod
     directory: /
@@ -55,9 +61,16 @@ updates:
           - "github.com/prometheus/*"
           - "github.com/onsi/*"
           - "github.com/stretchr/testify"
+      go-security:
+        applies-to: security-updates
+        patterns: ["*"]
 
+  # examples/redfish replaces pkg/redfish with ../../pkg/redfish, so both
+  # modules must move together: one entry, one PR per update across both.
   - package-ecosystem: gomod
-    directory: /pkg/redfish
+    directories:
+      - /pkg/redfish
+      - /examples/redfish
     allow:
       - dependency-type: all
     cooldown:
@@ -69,20 +82,17 @@ updates:
     commit-message:
       prefix: deps
     labels: [dependencies, go]
-
-  - package-ecosystem: gomod
-    directory: /examples/redfish
-    allow:
-      - dependency-type: all
-    cooldown:
-      default-days: 3
-      semver-major-days: 14
-    schedule:
-      interval: daily
-    open-pull-requests-limit: 20
-    commit-message:
-      prefix: deps
-    labels: [dependencies, go]
+    groups:
+      redfish-major:
+        group-by: dependency-name
+        patterns: ["*"]
+        update-types: [major]
+      redfish-minor-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      redfish-security:
+        applies-to: security-updates
+        patterns: ["*"]
 
   - package-ecosystem: github-actions
     directory: /
