@@ -5,9 +5,10 @@ Shared Go helpers for Telekom T-CaaS Kubernetes operators.
 ## Dependency and security maintenance
 
 Dependabot checks all three Go modules daily, including indirect dependencies,
-and SHA-pinned GitHub Actions. The Redfish module and its example are tracked
-separately because the example uses a local module replacement; keep their
-gofish requirements consistent.
+and SHA-pinned GitHub Actions. The Redfish module and its example share one
+Dependabot entry because the example uses a local module replacement, so a
+gofish update moves both in the same PR. Security updates are grouped into one
+PR per entry (`*-security` groups).
 
 The `CI Gate` workflow merges a Dependabot PR once every other check on it has
 passed, then dispatches the main-branch workflows a merge would normally start.
