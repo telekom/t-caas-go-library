@@ -18,8 +18,9 @@ participating you agree to uphold it.
 
 Requirements: Go (version from `go.mod`), `make`, and optionally
 [`reuse`](https://reuse.software/) (or `uvx`/`pipx`) for license checks.
-All other tools (golangci-lint, setup-envtest, govulncheck) are pinned in
-`versions.env` and installed into `./bin` automatically.
+All other tools (golangci-lint, setup-envtest, govulncheck, go-licenses) are pinned
+in `hack/tools/` Go modules (tracked by Dependabot) and installed into `./bin`
+automatically. Other tool versions live in `versions.env`.
 
 ```bash
 make all   # tidy-check, fmt, vet, lint, test, test-examples, reuse-lint, vuln, licenses, fuzz

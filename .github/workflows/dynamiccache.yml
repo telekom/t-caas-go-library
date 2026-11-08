@@ -18,6 +18,7 @@ on:
       - go.mod
       - go.sum
       - versions.env
+      - hack/tools/go.mod
       - .github/workflows/dynamiccache.yml
   pull_request:
     branches: [main]
@@ -26,6 +27,7 @@ on:
       - go.mod
       - go.sum
       - versions.env
+      - hack/tools/go.mod
       - .github/workflows/dynamiccache.yml
   schedule:
     - cron: "17 4 * * 1"
