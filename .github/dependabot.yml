@@ -4,6 +4,9 @@ updates:
     directory: /
     allow:
       - dependency-type: all
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
     schedule:
       interval: daily
     open-pull-requests-limit: 20
@@ -33,6 +36,9 @@ updates:
     directory: /pkg/redfish
     allow:
       - dependency-type: all
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
     schedule:
       interval: daily
     open-pull-requests-limit: 20
@@ -44,6 +50,9 @@ updates:
     directory: /examples/redfish
     allow:
       - dependency-type: all
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
     schedule:
       interval: daily
     open-pull-requests-limit: 20
@@ -53,6 +62,8 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
+    cooldown:
+      default-days: 3
     schedule:
       interval: daily
     open-pull-requests-limit: 20
