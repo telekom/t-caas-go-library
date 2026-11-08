@@ -23,8 +23,9 @@ updates:
     groups:
       go-tools:
         patterns: ["*"]
-      # Security updates ignore `allow` and can raise any module in the tool
-      # graphs; collect them in one PR across both tool modules.
+      # In other repos Dependabot has raised security updates for tool-graph
+      # modules that `allow` does not list (e.g. telekom/whereabouts#492).
+      # Collect any such updates in these tool graphs in one PR.
       go-tools-security:
         applies-to: security-updates
         patterns: ["*"]
