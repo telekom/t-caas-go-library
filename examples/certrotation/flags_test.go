@@ -36,7 +36,7 @@ func TestFlags(t *testing.T) {
 		o.port != 9444 || o.probeAddr != "0" ||
 		!slices.Equal(o.ValidatingWebhooks, []string{"first", "second", "third"}) ||
 		!slices.Equal(o.MutatingWebhooks, []string{"mutating"}) ||
-		fmt.Sprint(o.logOpts.Level) != "debug" || o.logOpts.Encoder == nil {
+		fmt.Sprint(o.logOpts.Level) != "debug" || o.logOpts.NewEncoder == nil {
 		t.Fatalf("parsed options: %+v", o)
 	}
 }
