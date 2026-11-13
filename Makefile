@@ -82,8 +82,10 @@ coverage: test ## Print a per-function coverage summary.
 
 .PHONY: fuzz
 fuzz: ## Briefly fuzz IP arithmetic and subdivision.
-	go test ./pkg/netutil -run='^$$' -fuzz='^FuzzArithmetic$$' -fuzztime=5s
-	go test ./pkg/netutil -run='^$$' -fuzz='^FuzzSubdivide$$' -fuzztime=5s
+	@# Exec count, not duration: a duration -fuzztime can fail spuriously with
+	@# "context deadline exceeded" before Go 1.27 (go.dev/issue/75804).
+	go test ./pkg/netutil -run='^$$' -fuzz='^FuzzArithmetic$$' -fuzztime=200000x
+	go test ./pkg/netutil -run='^$$' -fuzz='^FuzzSubdivide$$' -fuzztime=200000x
 
 ##@ Compliance & Security
 
