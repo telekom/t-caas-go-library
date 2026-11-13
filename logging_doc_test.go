@@ -89,7 +89,7 @@ type logCall struct {
 	pkg, level, msg, fields string
 }
 
-// classify recognises logr calls (x.Info, x.V(n).Info, x.Error) and
+// classify recognizes logr calls (x.Info, x.V(n).Info, x.Error) and
 // utilruntime.HandleErrorWithContext, which logs through the logr logger in
 // ctx, with a string (or string concatenation) message.
 func classify(call *ast.CallExpr) (logCall, bool) {
