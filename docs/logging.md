@@ -124,10 +124,14 @@ logr call (`Info`, `V(n).Info`, `Error`) and `utilruntime.HandleErrorWithContext
 call with its level, message and keys. It runs in `make test` and fails when:
 
 - the table above differs from the code, so a new, changed or removed log line
-  must update this document in the same pull request; or
-- library code logs other than through the context logger (`fmt.Print*`,
-  `fmt.Fprint*` to stdout/stderr, the standard `log` package, `slog`, `klog`,
-  or `SetLogger`).
+  must update this document in the same pull request;
+- a log call has no literal message (a string constant or a concatenation with
+  one), because it could not be documented; or
+- library code logs other than through the context logger. Packages are
+  matched by import path, so aliases are caught: the standard `log` package,
+  `log/slog`, klog, zap, controller-runtime's global `ctrl.Log`/`log.Log` and
+  `SetLogger`, `utilruntime.HandleError` without a context, `fmt.Print*`,
+  `fmt.Fprint*` and `Write*` to stdout/stderr, and `print`/`println`.
 
 Regenerate the table with
 

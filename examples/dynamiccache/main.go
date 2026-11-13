@@ -39,7 +39,12 @@ import (
 
 var skipNameValidation = true
 
+// installLogger installs the logger configured by the --zap-* flags. main
+// sets it, so tests that call run leave the global logger alone.
+var installLogger = func(*zap.Options) {}
+
 func main() {
+	installLogger = func(o *zap.Options) { ctrl.SetLogger(zap.New(zap.UseFlagOptions(o))) }
 	if err := run(ctrl.SetupSignalHandler(), nil, os.Stdout, os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -59,7 +64,7 @@ func run(ctx context.Context, cfg *rest.Config, out io.Writer, args []string) er
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&logOpts)))
+	installLogger(&logOpts)
 
 	nsSelector, err := labels.Parse(*selector)
 	if err != nil {
