@@ -13,6 +13,8 @@
 //	  --cert-rotation-validating-webhook=my-validating-webhook-configuration
 //
 // With --disable-cert-rotation it serves pre-provisioned certificates instead.
+// The --zap-* flags (for example --zap-log-level=debug --zap-encoder=console)
+// control the log output on stderr; see docs/logging.md.
 package main
 
 import (
@@ -38,6 +40,7 @@ type options struct {
 	host      string
 	port      int
 	probeAddr string
+	logOpts   zap.Options
 }
 
 func main() {
@@ -45,7 +48,7 @@ func main() {
 	bindFlags(flag.CommandLine, &o)
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New())
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&o.logOpts)))
 	if err := run(ctrl.SetupSignalHandler(), ctrl.GetConfigOrDie(), o); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -68,6 +71,7 @@ func bindFlags(flags *flag.FlagSet, o *options) {
 		list(&o.MutatingWebhooks))
 	flags.IntVar(&o.port, "port", webhook.DefaultPort, "Webhook server port")
 	flags.StringVar(&o.probeAddr, "health-probe-bind-address", ":8081", "Health probe address")
+	o.logOpts.BindFlags(flags) // --zap-log-level, --zap-encoder, ...
 }
 
 func run(ctx context.Context, restCfg *rest.Config, o options) error {

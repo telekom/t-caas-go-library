@@ -139,6 +139,7 @@ func TestRunRejectsInvalidSelectors(t *testing.T) {
 		{"--selector", "!!invalid"},
 		{"--selector", ""},
 		{"--unknown-flag"},
+		{"--zap-log-level", "bogus"},
 	} {
 		if err := run(context.Background(), nil, &bytes.Buffer{}, args); err == nil {
 			t.Errorf("run(%q) succeeded, want error", args)

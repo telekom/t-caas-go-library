@@ -11,6 +11,9 @@
 // fields.
 //
 //	go run ./examples/ssa --namespace default --name ssa-demo --data mode=fast
+//
+// The --zap-* flags (for example --zap-log-level=3) control the log output on
+// stderr; see docs/logging.md.
 package main
 
 import (
@@ -29,6 +32,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/telekom/t-caas-go-library/pkg/ssa"
 )
@@ -59,9 +63,13 @@ func run(ctx context.Context, cfg *rest.Config, out io.Writer, args []string) er
 	var data keyValues
 	flags.Var(&data, "data", "key=value data entry (repeatable)")
 	kubeconfig := flags.String("kubeconfig", "", "path to a kubeconfig (defaults to KUBECONFIG, then in-cluster)")
+	// --zap-log-level=3 shows the library's V(3) "unchanged, skipping" lines.
+	var logOpts zap.Options
+	logOpts.BindFlags(flags)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&logOpts)))
 
 	if cfg == nil {
 		var err error

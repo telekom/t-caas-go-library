@@ -68,7 +68,10 @@ upstream semantics. Never expose internal paths/hosts in public evidence.
    Export sentinel errors / typed errors where callers need `errors.Is/As`.
 5. **Logging:** context-aware only — `log.FromContext(ctx)` (controller-runtime
    / logr). Library code must not configure global loggers, tracers or metric
-   registries; accept them as parameters/options instead.
+   registries; accept them as parameters/options instead. A change that adds,
+   changes or removes a log line updates [docs/logging.md](../docs/logging.md) in
+   the same PR (`go test . -run TestLoggingReference -update`); `make test`
+   fails otherwise.
 6. **Context:** functions doing I/O take `ctx context.Context` as first argument.
 7. **Standard constants:** `http.MethodGet`, `rbacv1.GroupName`, etc. instead of
    string literals.

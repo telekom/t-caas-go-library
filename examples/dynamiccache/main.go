@@ -10,6 +10,9 @@
 // a restart.
 //
 //	go run ./examples/dynamiccache --selector example.com/watched=true
+//
+// The --zap-* flags (for example --zap-log-level=debug) control the log
+// output on stderr; see docs/logging.md.
 package main
 
 import (
@@ -27,6 +30,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/config"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -50,9 +54,12 @@ func run(ctx context.Context, cfg *rest.Config, out io.Writer, args []string) er
 	flags.SetOutput(out)
 	selector := flags.String("selector", "example.com/watched=true", "label selector choosing the watched namespaces")
 	kubeconfig := flags.String("kubeconfig", "", "path to a kubeconfig (defaults to KUBECONFIG / in-cluster)")
+	var logOpts zap.Options
+	logOpts.BindFlags(flags)
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&logOpts)))
 
 	nsSelector, err := labels.Parse(*selector)
 	if err != nil {

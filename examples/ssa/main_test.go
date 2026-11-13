@@ -97,6 +97,9 @@ func TestRunRejectsInvalidFlags(t *testing.T) {
 	if err := run(context.Background(), nil, &out, []string{"--data", "novalue"}); err == nil {
 		t.Error("run accepted --data without '='")
 	}
+	if err := run(context.Background(), nil, &out, []string{"--zap-log-level", "bogus"}); err == nil {
+		t.Error("run accepted --zap-log-level=bogus")
+	}
 }
 
 func TestRunUsesKubeconfigFlag(t *testing.T) {
