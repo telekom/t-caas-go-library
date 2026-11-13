@@ -161,41 +161,11 @@ func (v visitor) forbiddenSelector(sel *ast.SelectorExpr) string {
 // output (fmt.Print*, fmt.Fprint* and Write* to os.Stdout/os.Stderr, print,
 // println).
 func (v visitor) classify(call *ast.CallExpr) (c logCall, isLog bool, problem string) {
-	if id, ok := call.Fun.(*ast.Ident); ok && (id.Name == "print" || id.Name == "println") {
-		return c, false, "builtin " + id.Name
+	if problem = v.directOutput(call); problem != "" {
+		return c, false, problem
 	}
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return c, false, ""
-	}
-	name, recv := sel.Sel.Name, types.ExprString(sel.X)
-	if (recv == "os.Stdout" || recv == "os.Stderr") && strings.HasPrefix(name, "Write") {
-		return c, false, recv + "." + name
-	}
-	msgIdx, level := 0, "info"
-	switch pkg := v.pkgOf(sel.X); {
-	case pkg == "fmt":
-		if strings.HasPrefix(name, "Print") {
-			return c, false, "fmt." + name
-		}
-		if strings.HasPrefix(name, "Fprint") && len(call.Args) > 0 {
-			if w := types.ExprString(call.Args[0]); w == "os.Stdout" || w == "os.Stderr" {
-				return c, false, "fmt." + name + "(" + w + ")"
-			}
-		}
-		return c, false, ""
-	case pkg == utilRuntime && name == "HandleErrorWithContext":
-		msgIdx, level = 2, "error"
-	case pkg != "":
-		return c, false, ""
-	case name == "Info":
-		level = logrLevel(sel.X)
-	case name == "Error" && len(call.Args) > 1:
-		msgIdx, level = 1, "error"
-	default:
-		return c, false, ""
-	}
-	if len(call.Args) <= msgIdx {
+	msgIdx, level, ok := v.logCallSpec(call)
+	if !ok || len(call.Args) <= msgIdx {
 		return c, false, ""
 	}
 	msg, ok := message(call.Args[msgIdx])
@@ -215,6 +185,53 @@ func (v visitor) classify(call *ast.CallExpr) (c logCall, isLog bool, problem st
 		}
 	}
 	return logCall{pkg: v.pkg, level: level, msg: msg, fields: strings.Join(fields, ", ")}, true, ""
+}
+
+// directOutput reports output that bypasses any logger.
+func (v visitor) directOutput(call *ast.CallExpr) string {
+	if id, ok := call.Fun.(*ast.Ident); ok && (id.Name == "print" || id.Name == "println") {
+		return "builtin " + id.Name
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return ""
+	}
+	name, recv := sel.Sel.Name, types.ExprString(sel.X)
+	if (recv == "os.Stdout" || recv == "os.Stderr") && strings.HasPrefix(name, "Write") {
+		return recv + "." + name
+	}
+	if v.pkgOf(sel.X) != "fmt" {
+		return ""
+	}
+	if strings.HasPrefix(name, "Print") {
+		return "fmt." + name
+	}
+	if strings.HasPrefix(name, "Fprint") && len(call.Args) > 0 {
+		if w := types.ExprString(call.Args[0]); w == "os.Stdout" || w == "os.Stderr" {
+			return "fmt." + name + "(" + w + ")"
+		}
+	}
+	return ""
+}
+
+// logCallSpec returns the message argument and level of a log call.
+func (v visitor) logCallSpec(call *ast.CallExpr) (msgIdx int, level string, ok bool) {
+	sel, isSel := call.Fun.(*ast.SelectorExpr)
+	if !isSel {
+		return 0, "", false
+	}
+	name := sel.Sel.Name
+	switch pkg := v.pkgOf(sel.X); {
+	case pkg == utilRuntime && name == "HandleErrorWithContext":
+		return 2, "error", true
+	case pkg != "":
+		return 0, "", false
+	case name == "Info":
+		return 0, logrLevel(sel.X), true
+	case name == "Error" && len(call.Args) > 1:
+		return 1, "error", true
+	}
+	return 0, "", false
 }
 
 // logrLevel walks x.V(n).WithValues(...).WithName(...) receivers for V(n).
