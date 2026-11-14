@@ -83,9 +83,16 @@ Their level and format follow the consumer's `ctrl.SetLogger` (and
 
 ### Personal data
 
-Logged fields contain Kubernetes object names, namespaces, GVKs and file
-paths. Error texts can quote API server responses with object names. The
-library logs no credentials, tokens or certificate material.
+The fields the library adds itself (the keys in the table below) contain
+Kubernetes object names, namespaces, GVKs and file paths, never credentials,
+tokens or certificate material.
+
+The `error` value is logged as is and is not redacted. Its text comes from
+wherever the error originated: API server responses (with object names), and
+in `pkg/discovery/tracker` the errors of a caller-provided `Source` and of the
+CRD watch. If your `Source` or transport can return errors that embed secrets
+(URLs with credentials, response bodies, tokens), sanitize them before
+returning, for example with `pkg/redact`.
 
 ## Log reference
 
