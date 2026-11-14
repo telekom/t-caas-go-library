@@ -425,6 +425,10 @@ import "github.com/telekom/t-caas-go-library/pkg/<package>"
 
 Consumers should pin a released tag (`vX.Y.Z`) rather than a pseudo-version.
 
+The library logs only through the logr logger in the caller's context; see
+[Logging](docs/logging.md) for the contract, what each package logs at which
+level, and how consumers control it.
+
 ### Redfish module
 
 The synthetic test server is isolated in the nested module

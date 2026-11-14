@@ -6,6 +6,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -26,7 +27,7 @@ func TestFlags(t *testing.T) {
 		"--cert-rotation-dns-name=hook.example", "--cert-rotation-service-name=hook",
 		"--cert-rotation-secret-name=certs", "--port=9444", "--health-probe-bind-address=0",
 		"--cert-rotation-validating-webhook=first,second", "--cert-rotation-validating-webhook=third",
-		"--cert-rotation-mutating-webhook=mutating",
+		"--cert-rotation-mutating-webhook=mutating", "--zap-log-level=debug", "--zap-encoder=console",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +35,8 @@ func TestFlags(t *testing.T) {
 		o.DNSName != "hook.example" || o.ServiceName != "hook" || o.SecretName != "certs" ||
 		o.port != 9444 || o.probeAddr != "0" ||
 		!slices.Equal(o.ValidatingWebhooks, []string{"first", "second", "third"}) ||
-		!slices.Equal(o.MutatingWebhooks, []string{"mutating"}) {
+		!slices.Equal(o.MutatingWebhooks, []string{"mutating"}) ||
+		fmt.Sprint(o.logOpts.Level) != "debug" || o.logOpts.NewEncoder == nil {
 		t.Fatalf("parsed options: %+v", o)
 	}
 }
