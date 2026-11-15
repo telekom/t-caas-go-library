@@ -103,9 +103,9 @@ type Config struct {
 	// CheckInterval is how often the rotator checks the certificates for
 	// renewal. Defaults to [DefaultCheckInterval] (12 hours).
 	//
-	// The effective values must satisfy
-	// CheckInterval < RenewBefore < CertValidity <= CAValidity, so that every
-	// certificate is renewed before it expires.
+	// Non-zero values must be at least one second, and the effective values
+	// must satisfy CheckInterval < RenewBefore < CertValidity <= CAValidity,
+	// so that every certificate is renewed before it expires.
 	CheckInterval time.Duration
 }
 
@@ -148,8 +148,10 @@ func (c Config) validateDurations() []error {
 		{"CA validity", c.CAValidity}, {"certificate validity", c.CertValidity},
 		{"renew before", c.RenewBefore}, {"check interval", c.CheckInterval},
 	} {
-		if f.d < 0 {
-			errs = append(errs, fmt.Errorf("%s must not be negative, got %s", f.name, f.d))
+		// X.509 validity has whole-second precision; shorter values could
+		// produce certificates that are already expired.
+		if f.d < 0 || (f.d > 0 && f.d < time.Second) {
+			errs = append(errs, fmt.Errorf("%s must be zero (default) or at least 1s, got %s", f.name, f.d))
 		}
 	}
 	if len(errs) > 0 {

@@ -319,7 +319,7 @@ optional `Config` fields; zero values keep the defaults:
 | `RenewBefore` | 90 days | Renew the CA and the serving certificate this long before expiry |
 | `CheckInterval` | 12 hours | How often the rotator checks the certificates |
 
-`Validate` requires `CheckInterval < RenewBefore < CertValidity <= CAValidity`
+`Validate` requires non-zero values of at least one second and `CheckInterval < RenewBefore < CertValidity <= CAValidity`
 after defaulting, so shortening only `CertValidity` below 90 days also needs a
 shorter `RenewBefore`.
 

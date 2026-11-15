@@ -52,12 +52,24 @@ func TestValidate(t *testing.T) {
 		{name: "custom lifetimes", mutate: func(c *Config) {
 			c.CAValidity, c.CertValidity, c.RenewBefore, c.CheckInterval = 365*24*time.Hour, 30*24*time.Hour, 7*24*time.Hour, time.Hour
 		}},
+		{
+			name: "sub-second lifetimes",
+			mutate: func(c *Config) {
+				c.CAValidity, c.CertValidity = time.Millisecond, time.Millisecond
+				c.RenewBefore, c.CheckInterval = 900*time.Microsecond, 100*time.Microsecond
+			},
+			wantErr: "certificate validity must be zero (default) or at least 1s, got 1ms",
+		},
 		{name: "certificate validity equals CA validity", mutate: func(c *Config) { c.CAValidity = DefaultCertValidity }},
-		{name: "negative CA validity", mutate: func(c *Config) { c.CAValidity = -time.Hour }, wantErr: "CA validity must not be negative"},
+		{
+			name:    "negative CA validity",
+			mutate:  func(c *Config) { c.CAValidity = -time.Hour },
+			wantErr: "CA validity must be zero (default) or at least 1s",
+		},
 		{
 			name:    "negative check interval",
 			mutate:  func(c *Config) { c.CheckInterval = -time.Hour },
-			wantErr: "check interval must not be negative",
+			wantErr: "check interval must be zero (default) or at least 1s",
 		},
 		{
 			name:    "certificate validity above CA validity",
