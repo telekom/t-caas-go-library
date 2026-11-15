@@ -309,6 +309,20 @@ whereabouts needs it; use deployment manifests or retain its direct
 controller-runtime client logic locally. Controller names pass through to
 upstream without a custom process-wide naming implementation.
 
+Certificate lifetimes default to cert-controller's values. Override them with
+optional `Config` fields; zero values keep the defaults:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `CAValidity` | 10 years | Lifetime of a generated CA |
+| `CertValidity` | 1 year | Lifetime of a generated serving certificate |
+| `RenewBefore` | 90 days | Renew the CA and the serving certificate this long before expiry |
+| `CheckInterval` | 12 hours | How often the rotator checks the certificates |
+
+`Validate` requires non-zero values of at least one second and `CheckInterval < RenewBefore < CertValidity <= CAValidity`
+after defaulting, so shortening only `CertValidity` below 90 days also needs a
+shorter `RenewBefore`.
+
 The certificate Secret must exist before rotation starts.
 Without leader-only rotation,
 every replica may update the shared Secret (matching whereabouts); enable

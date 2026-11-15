@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/open-policy-agent/cert-controller/pkg/rotator"
 )
@@ -17,6 +18,14 @@ import (
 // ErrInvalidConfig is returned (wrapped) by [Config.Validate] and [AddRotator]
 // when the configuration is incomplete or inconsistent.
 var ErrInvalidConfig = errors.New("certrotation: invalid config")
+
+// Defaults for the certificate lifetimes, matching cert-controller's defaults.
+const (
+	DefaultCAValidity    = 10 * 365 * 24 * time.Hour
+	DefaultCertValidity  = 365 * 24 * time.Hour
+	DefaultRenewBefore   = 90 * 24 * time.Hour
+	DefaultCheckInterval = 12 * time.Hour
+)
 
 // Config configures webhook certificate rotation.
 //
@@ -81,6 +90,23 @@ type Config struct {
 	// FieldOwner is the field manager used when updating webhook
 	// configurations (optional).
 	FieldOwner string
+
+	// CAValidity is the lifetime of a generated CA. Defaults to
+	// [DefaultCAValidity] (10 years).
+	CAValidity time.Duration
+	// CertValidity is the lifetime of a generated serving certificate.
+	// Defaults to [DefaultCertValidity] (1 year).
+	CertValidity time.Duration
+	// RenewBefore is how long before expiry the CA and the serving
+	// certificate are renewed. Defaults to [DefaultRenewBefore] (90 days).
+	RenewBefore time.Duration
+	// CheckInterval is how often the rotator checks the certificates for
+	// renewal. Defaults to [DefaultCheckInterval] (12 hours).
+	//
+	// Non-zero values must be at least one second, and the effective values
+	// must satisfy CheckInterval < RenewBefore < CertValidity <= CAValidity,
+	// so that every certificate is renewed before it expires.
+	CheckInterval time.Duration
 }
 
 // Validate reports whether c is usable by [AddRotator]. A disabled config is
@@ -105,14 +131,66 @@ func (c Config) Validate() error {
 	if slices.Contains(c.MutatingWebhooks, "") {
 		errs = append(errs, errors.New("mutating webhook names must not be empty"))
 	}
+	errs = append(errs, c.validateDurations()...)
 	if len(errs) > 0 {
 		return fmt.Errorf("%w: %w", ErrInvalidConfig, errors.Join(errs...))
 	}
 	return nil
 }
 
+// validateDurations checks the certificate lifetimes after defaulting.
+func (c Config) validateDurations() []error {
+	var errs []error
+	for _, f := range []struct {
+		name string
+		d    time.Duration
+	}{
+		{"CA validity", c.CAValidity}, {"certificate validity", c.CertValidity},
+		{"renew before", c.RenewBefore}, {"check interval", c.CheckInterval},
+	} {
+		// X.509 validity has whole-second precision; shorter values could
+		// produce certificates that are already expired.
+		if f.d < 0 || (f.d > 0 && f.d < time.Second) {
+			errs = append(errs, fmt.Errorf("%s must be zero (default) or at least 1s, got %s", f.name, f.d))
+		}
+	}
+	if len(errs) > 0 {
+		return errs
+	}
+	d := c.withDurationDefaults()
+	if d.CheckInterval >= d.RenewBefore {
+		errs = append(errs, fmt.Errorf("check interval %s must be less than renew before %s", d.CheckInterval, d.RenewBefore))
+	}
+	if d.RenewBefore >= d.CertValidity {
+		errs = append(errs, fmt.Errorf("renew before %s must be less than certificate validity %s", d.RenewBefore, d.CertValidity))
+	}
+	if d.CertValidity > d.CAValidity {
+		errs = append(errs, fmt.Errorf("certificate validity %s must not exceed CA validity %s", d.CertValidity, d.CAValidity))
+	}
+	return errs
+}
+
+// withDurationDefaults returns a copy of c with the certificate lifetime
+// defaults applied.
+func (c Config) withDurationDefaults() Config {
+	if c.CAValidity == 0 {
+		c.CAValidity = DefaultCAValidity
+	}
+	if c.CertValidity == 0 {
+		c.CertValidity = DefaultCertValidity
+	}
+	if c.RenewBefore == 0 {
+		c.RenewBefore = DefaultRenewBefore
+	}
+	if c.CheckInterval == 0 {
+		c.CheckInterval = DefaultCheckInterval
+	}
+	return c
+}
+
 // withDefaults returns a copy of c with defaults applied.
 func (c Config) withDefaults() Config {
+	c = c.withDurationDefaults()
 	if c.CertDir == "" {
 		c.CertDir = filepath.Join(os.TempDir(), "k8s-webhook-server", "serving-certs")
 	}
