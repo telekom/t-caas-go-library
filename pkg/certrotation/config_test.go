@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/open-policy-agent/cert-controller/pkg/rotator"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func TestValidate(t *testing.T) {
@@ -48,6 +49,36 @@ func TestValidate(t *testing.T) {
 			wantErr: "mutating webhook names",
 		},
 		{name: "zero value", mutate: func(c *Config) { *c = Config{} }, wantErr: "namespace is required"},
+		{name: "custom lifetimes", mutate: func(c *Config) {
+			c.CAValidity, c.CertValidity, c.RenewBefore, c.CheckInterval = 365*24*time.Hour, 30*24*time.Hour, 7*24*time.Hour, time.Hour
+		}},
+		{name: "certificate validity equals CA validity", mutate: func(c *Config) { c.CAValidity = DefaultCertValidity }},
+		{name: "negative CA validity", mutate: func(c *Config) { c.CAValidity = -time.Hour }, wantErr: "CA validity must not be negative"},
+		{
+			name:    "negative check interval",
+			mutate:  func(c *Config) { c.CheckInterval = -time.Hour },
+			wantErr: "check interval must not be negative",
+		},
+		{
+			name:    "certificate validity above CA validity",
+			mutate:  func(c *Config) { c.CAValidity = 180 * 24 * time.Hour },
+			wantErr: "must not exceed CA validity",
+		},
+		{
+			name:    "certificate validity below default renew before",
+			mutate:  func(c *Config) { c.CertValidity = 30 * 24 * time.Hour },
+			wantErr: "renew before 2160h0m0s must be less than certificate validity 720h0m0s",
+		},
+		{
+			name:    "renew before equals certificate validity",
+			mutate:  func(c *Config) { c.RenewBefore = DefaultCertValidity },
+			wantErr: "must be less than certificate validity",
+		},
+		{
+			name:    "renew before not above check interval",
+			mutate:  func(c *Config) { c.RenewBefore = 12 * time.Hour },
+			wantErr: "check interval 12h0m0s must be less than renew before",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -113,10 +144,43 @@ func TestWithDefaults(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := tt.in.withDefaults()
+			tt.want.CAValidity, tt.want.CertValidity = DefaultCAValidity, DefaultCertValidity
+			tt.want.RenewBefore, tt.want.CheckInterval = DefaultRenewBefore, DefaultCheckInterval
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("withDefaults() =\n%+v\nwant\n%+v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCertRotator(t *testing.T) {
+	t.Parallel()
+	ready := make(chan struct{})
+	base := Config{
+		Namespace: "ns", SecretName: "certs", ControllerName: "rot", DNSName: "hook.ns.svc", ExtraDNSNames: []string{"hook"},
+		CertDir: "/certs", CAName: "ca", CAOrganization: "org", ValidatingWebhooks: []string{"v"}, FieldOwner: "fo",
+		RestartOnSecretRefresh: true, RequireLeaderElection: true,
+	}
+	want := rotator.CertRotator{
+		SecretKey: types.NamespacedName{Namespace: "ns", Name: "certs"}, CertDir: "/certs", CAName: "ca", CAOrganization: "org",
+		DNSName: "hook.ns.svc", ExtraDNSNames: []string{"hook"}, IsReady: ready,
+		Webhooks: []rotator.WebhookInfo{{Name: "v", Type: rotator.Validating}}, FieldOwner: "fo",
+		RestartOnSecretRefresh: true, RequireLeaderElection: true, ControllerName: "rot",
+		// cert-controller's defaults: unchanged when the fields are zero.
+		CaCertDuration: 10 * 365 * 24 * time.Hour, ServerCertDuration: 365 * 24 * time.Hour,
+		LookaheadInterval: 90 * 24 * time.Hour, RotationCheckFrequency: 12 * time.Hour,
+	}
+	if got := base.withDefaults().certRotator(ready); !reflect.DeepEqual(*got, want) {
+		t.Fatalf("defaults: certRotator() =\n%+v\nwant\n%+v", *got, want)
+	}
+
+	custom := base
+	custom.CAValidity, custom.CertValidity = 365*24*time.Hour, 30*24*time.Hour
+	custom.RenewBefore, custom.CheckInterval = 7*24*time.Hour, time.Hour
+	want.CaCertDuration, want.ServerCertDuration = custom.CAValidity, custom.CertValidity
+	want.LookaheadInterval, want.RotationCheckFrequency = custom.RenewBefore, custom.CheckInterval
+	if got := custom.withDefaults().certRotator(ready); !reflect.DeepEqual(*got, want) {
+		t.Fatalf("custom: certRotator() =\n%+v\nwant\n%+v", *got, want)
 	}
 }
 

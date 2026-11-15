@@ -6,9 +6,11 @@ package certrotation_test
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"net"
 	"os"
 	"path/filepath"
@@ -103,11 +105,16 @@ func TestAddRotatorEnvtest(t *testing.T) {
 	if os.Getenv("KUBEBUILDER_ASSETS") == "" {
 		t.Skip("KUBEBUILDER_ASSETS not set; run via `make test`")
 	}
-	t.Run("leader-only rotation", func(t *testing.T) { testAddRotator(t, true) })
-	t.Run("all-replica rotation", func(t *testing.T) { testAddRotator(t, false) })
+	t.Run("leader-only rotation", func(t *testing.T) { testAddRotator(t, true, lifetimes{}) })
+	t.Run("all-replica rotation with custom lifetimes", func(t *testing.T) {
+		testAddRotator(t, false, lifetimes{ca: 30 * 24 * time.Hour, cert: 7 * 24 * time.Hour, renewBefore: 48 * time.Hour})
+	})
 }
 
-func testAddRotator(t *testing.T, requireLeaderElection bool) {
+// lifetimes are optional certificate lifetimes; zero values use the defaults.
+type lifetimes struct{ ca, cert, renewBefore time.Duration }
+
+func testAddRotator(t *testing.T, requireLeaderElection bool, lt lifetimes) {
 	t.Helper()
 	log.SetLogger(logr.Discard())
 
@@ -167,6 +174,9 @@ func testAddRotator(t *testing.T, requireLeaderElection bool) {
 		MutatingWebhooks:   []string{testMWC},
 		// Keep restart disabled: enabling it exits after writing the Secret.
 		RequireLeaderElection: requireLeaderElection,
+		CAValidity:            lt.ca,
+		CertValidity:          lt.cert,
+		RenewBefore:           lt.renewBefore,
 	})
 	if err != nil {
 		t.Fatalf("AddRotator: %v", err)
@@ -210,7 +220,8 @@ func testAddRotator(t *testing.T, requireLeaderElection bool) {
 		t.Fatalf("ready check failed after setup: %v", err)
 	}
 
-	assertServingCert(ctx, t, caPEM, port)
+	leaf := assertServingCert(ctx, t, caPEM, port)
+	assertLifetimes(t, caPEM, leaf, lt)
 
 	cancel()
 	if err := <-mgrErr; err != nil {
@@ -257,7 +268,7 @@ func assertSecretAndCABundles(
 
 // assertServingCert checks that the webhook server serves the rotated
 // certificate, valid for the service DNS names.
-func assertServingCert(ctx context.Context, t *testing.T, caPEM []byte, port int) {
+func assertServingCert(ctx context.Context, t *testing.T, caPEM []byte, port int) *x509.Certificate {
 	t.Helper()
 	pool := x509.NewCertPool()
 	pool.AppendCertsFromPEM(caPEM)
@@ -278,5 +289,28 @@ func assertServingCert(ctx context.Context, t *testing.T, caPEM []byte, port int
 		if !slices.Contains(leaf.DNSNames, n) {
 			t.Fatalf("serving certificate SANs %v miss %q", leaf.DNSNames, n)
 		}
+	}
+	return leaf
+}
+
+// assertLifetimes checks that the generated CA and serving certificate have
+// the configured (or default) validity. cert-controller backdates NotBefore by
+// one hour.
+func assertLifetimes(t *testing.T, caPEM []byte, leaf *x509.Certificate, lt lifetimes) {
+	t.Helper()
+	block, _ := pem.Decode(caPEM)
+	if block == nil {
+		t.Fatal("ca.crt is not PEM")
+	}
+	ca, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCA, wantCert := cmp.Or(lt.ca, certrotation.DefaultCAValidity), cmp.Or(lt.cert, certrotation.DefaultCertValidity)
+	if got := ca.NotAfter.Sub(ca.NotBefore); got != wantCA+time.Hour {
+		t.Fatalf("CA lifetime = %s, want %s", got, wantCA+time.Hour)
+	}
+	if got := leaf.NotAfter.Sub(leaf.NotBefore); got != wantCert+time.Hour {
+		t.Fatalf("serving certificate lifetime = %s, want %s", got, wantCert+time.Hour)
 	}
 }

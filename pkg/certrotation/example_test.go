@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -20,8 +21,14 @@ func ExampleConfig_Validate() {
 	err := certrotation.Config{Namespace: "my-system", DNSName: "my-webhook.my-system.svc"}.Validate()
 	fmt.Println(errors.Is(err, certrotation.ErrInvalidConfig))
 	fmt.Println(certrotation.Config{Disabled: true}.Validate())
+	// Shorter lifetimes: CA 1 year, serving certificate 30 days, renewal 7 days before expiry.
+	fmt.Println(certrotation.Config{
+		Namespace: "my-system", SecretName: "my-webhook-certs", DNSName: "my-webhook.my-system.svc",
+		CAValidity: 365 * 24 * time.Hour, CertValidity: 30 * 24 * time.Hour, RenewBefore: 7 * 24 * time.Hour,
+	}.Validate())
 	// Output:
 	// true
+	// <nil>
 	// <nil>
 }
 

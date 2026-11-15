@@ -29,6 +29,13 @@
 // mutatingwebhookconfigurations (admissionregistration.k8s.io). The Secret
 // must exist before the rotator starts; create it in deployment manifests.
 //
+// Certificate lifetimes default to cert-controller's values: the CA is valid
+// for 10 years, the serving certificate for 1 year, both are renewed 90 days
+// before expiry, and the rotator checks every 12 hours. Config.CAValidity,
+// Config.CertValidity, Config.RenewBefore and Config.CheckInterval override
+// them; [Config.Validate] requires
+// CheckInterval < RenewBefore < CertValidity <= CAValidity.
+//
 // controller-runtime enforces unique controller names per process. Set distinct
 // Config.ControllerName values when registering multiple rotators.
 package certrotation
@@ -79,26 +86,12 @@ func AddRotator(ctx context.Context, mgr ctrl.Manager, cfg Config) (<-chan struc
 		return nil, err
 	}
 	cfg = cfg.withDefaults()
-	secretKey := types.NamespacedName{Namespace: cfg.Namespace, Name: cfg.SecretName}
 
 	rotatorReady := ready
 	if cfg.RequireLeaderElection {
 		rotatorReady = make(chan struct{})
 	}
-	if err := rotator.AddRotator(mgr, &rotator.CertRotator{
-		SecretKey:              secretKey,
-		CertDir:                cfg.CertDir,
-		CAName:                 cfg.CAName,
-		CAOrganization:         cfg.CAOrganization,
-		DNSName:                cfg.DNSName,
-		ExtraDNSNames:          cfg.ExtraDNSNames,
-		IsReady:                rotatorReady,
-		Webhooks:               cfg.webhooks(),
-		FieldOwner:             cfg.FieldOwner,
-		RestartOnSecretRefresh: cfg.RestartOnSecretRefresh,
-		RequireLeaderElection:  cfg.RequireLeaderElection,
-		ControllerName:         cfg.ControllerName,
-	}); err != nil {
+	if err := rotator.AddRotator(mgr, cfg.certRotator(rotatorReady)); err != nil {
 		return nil, fmt.Errorf("adding cert rotator: %w", err)
 	}
 	if !cfg.RequireLeaderElection {
@@ -110,6 +103,28 @@ func AddRotator(ctx context.Context, mgr ctrl.Manager, cfg Config) (<-chan struc
 		return nil, fmt.Errorf("adding certificate mount watcher: %w", err)
 	}
 	return ready, nil
+}
+
+// certRotator maps a defaulted config to the cert-controller rotator.
+func (c Config) certRotator(isReady chan struct{}) *rotator.CertRotator {
+	return &rotator.CertRotator{
+		SecretKey:              types.NamespacedName{Namespace: c.Namespace, Name: c.SecretName},
+		CertDir:                c.CertDir,
+		CAName:                 c.CAName,
+		CAOrganization:         c.CAOrganization,
+		DNSName:                c.DNSName,
+		ExtraDNSNames:          c.ExtraDNSNames,
+		IsReady:                isReady,
+		Webhooks:               c.webhooks(),
+		FieldOwner:             c.FieldOwner,
+		RestartOnSecretRefresh: c.RestartOnSecretRefresh,
+		RequireLeaderElection:  c.RequireLeaderElection,
+		ControllerName:         c.ControllerName,
+		CaCertDuration:         c.CAValidity,
+		ServerCertDuration:     c.CertValidity,
+		LookaheadInterval:      c.RenewBefore,
+		RotationCheckFrequency: c.CheckInterval,
+	}
 }
 
 // ReadyChecker returns a healthz.Checker that fails until ready is closed.
