@@ -115,14 +115,20 @@ const (
 // call uses and that is missing here fails TestLoggingReference, and so does
 // an entry for a key no log call uses.
 var personalData = map[string]struct{ class, subject, content string }{
-	"<target.logKV>": {"tenant-pii", "tenant-user", "lower-camel kind as key, object name as value, plus `namespace` if namespaced"},
-	"certDir":        {"none", "none", "file path of the webhook certificate directory"},
-	"error":          {"tenant-pii", "tenant-user", "free text; API server errors name objects and namespaces"},
-	"field":          {"none", "none", "name of a field index"},
-	"gvk":            {"none", "none", "group, version and kind"},
-	"name":           {"tenant-pii", "tenant-user", "object name, chosen by the tenant"},
-	"namespace":      {"tenant-pii", "tenant-user", "namespace name, which can hold a tenant or user name"},
+	"<kind>":    {"tenant-pii", "tenant-user", "object name, logged under the object's lower-camel kind (for example `configMap`)"},
+	"certDir":   {"none", "none", "file path of the webhook certificate directory"},
+	"error":     {"tenant-pii", "tenant-user", "free text; API server errors name objects and namespaces"},
+	"field":     {"none", "none", "name of a field index"},
+	"gvk":       {"none", "none", "group, version and kind"},
+	"name":      {"tenant-pii", "tenant-user", "object name, chosen by the tenant"},
+	"namespace": {"tenant-pii", "tenant-user", "namespace name, which can hold a tenant or user name"},
 }
+
+// spreadKeys lists the keys of a key/value slice passed to a log call with
+// "...", which the scanner sees as one <expr> field: pkg/ssa/applier.go logs
+// target.logKV as the lower-camel kind with the object name, then
+// "namespace" for namespaced kinds.
+var spreadKeys = map[string][]string{"<target.logKV>": {"<kind>", "namespace"}}
 
 // renderPersonalData renders one row per log key with its classification and
 // the levels it is logged at. missing are logged keys personalData lacks,
@@ -131,8 +137,14 @@ func renderPersonalData(calls []logCall) (table string, missing, stale []string)
 	levels := map[string][]string{}
 	for _, c := range calls {
 		for f := range strings.SplitSeq(c.fields, ", ") {
-			if key := strings.Trim(f, "`"); key != "" && !slices.Contains(levels[key], c.level) {
-				levels[key] = append(levels[key], c.level)
+			keys, spread := spreadKeys[strings.Trim(f, "`")]
+			if !spread {
+				keys = []string{strings.Trim(f, "`")}
+			}
+			for _, k := range keys {
+				if k != "" && !slices.Contains(levels[k], c.level) {
+					levels[k] = append(levels[k], c.level)
+				}
 			}
 		}
 	}

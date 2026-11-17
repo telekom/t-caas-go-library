@@ -93,18 +93,20 @@ carries `customer-data` (addresses or names of end customers).
 Every key is classified below, generated from the `personalData` table in
 `logging_doc_test.go`. *Levels* are the logr levels that log the key: at the
 default `info` level the `error` lines and the dynamiccache `namespace` lines
-already carry personal data; `V(2)`/`V(3)` add `name` and the object key.
+already carry personal data; `V(2)`/`V(3)` add `name` and the object key
+(`<kind>`). A key/value slice passed with `...` (`<target.logKV>`) is listed
+with the keys it holds.
 
 <!-- BEGIN GENERATED PERSONAL DATA TABLE -->
 | Field | Class | Data subject | Levels | Content |
 |---|---|---|---|---|
-| `<target.logKV>` | tenant-pii | tenant-user | V(3) | lower-camel kind as key, object name as value, plus `namespace` if namespaced |
+| `<kind>` | tenant-pii | tenant-user | V(3) | object name, logged under the object's lower-camel kind (for example `configMap`) |
 | `certDir` | none | none | info | file path of the webhook certificate directory |
 | `error` | tenant-pii | tenant-user | error | free text; API server errors name objects and namespaces |
 | `field` | none | none | error | name of a field index |
 | `gvk` | none | none | error, info | group, version and kind |
 | `name` | tenant-pii | tenant-user | V(2) | object name, chosen by the tenant |
-| `namespace` | tenant-pii | tenant-user | error, info | namespace name, which can hold a tenant or user name |
+| `namespace` | tenant-pii | tenant-user | error, info, V(3) | namespace name, which can hold a tenant or user name |
 <!-- END GENERATED PERSONAL DATA TABLE -->
 
 The `error` value is logged as is and is not redacted. Its text comes from
