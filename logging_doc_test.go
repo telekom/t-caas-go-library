@@ -11,6 +11,7 @@ import (
 	"go/token"
 	"go/types"
 	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"path"
@@ -74,21 +75,86 @@ func TestLoggingReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	doc := string(raw)
-	i, j := strings.Index(doc, tableBegin), strings.Index(doc, tableEnd)
+	pdTable, missing, stale := renderPersonalData(calls)
+	for _, key := range missing {
+		t.Errorf("log key %q has no entry in personalData (logging_doc_test.go): classify it", key)
+	}
+	for _, key := range stale {
+		t.Errorf("personalData lists %q, which no log call uses: remove it", key)
+	}
+	updated := syncTable(t, doc, tableBegin, tableEnd, renderTable(calls))
+	updated = syncTable(t, updated, pdBegin, pdEnd, pdTable)
+	if updated != doc {
+		if err := os.WriteFile(loggingDoc, []byte(updated), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// syncTable returns doc with the generated table between begin and end set
+// to want. Without -update a difference fails the test.
+func syncTable(t *testing.T, doc, begin, end, want string) string {
+	t.Helper()
+	i, j := strings.Index(doc, begin), strings.Index(doc, end)
 	if i < 0 || j < i {
-		t.Fatalf("%s: generated table markers missing", loggingDoc)
+		t.Fatalf("%s: generated table markers %q missing", loggingDoc, begin)
 	}
-	want := renderTable(calls)
-	if doc[i+len(tableBegin):j] == want {
-		return
+	if doc[i+len(begin):j] != want && !*update {
+		t.Fatalf("%s: generated table is out of date with the code; run: %s\n--- want\n%s", loggingDoc, updateHint, want)
 	}
-	if !*update {
-		t.Fatalf("%s: log table is out of date with the code; run: %s\n--- want\n%s", loggingDoc, updateHint, want)
+	return doc[:i+len(begin)] + want + doc[j:]
+}
+
+const (
+	pdBegin = "<!-- BEGIN GENERATED PERSONAL DATA TABLE -->\n"
+	pdEnd   = "<!-- END GENERATED PERSONAL DATA TABLE -->"
+)
+
+// personalData classifies every log key by the personal-data class and the
+// data subject of the tcaas-psa logging contract (chapter 3). A key that a log
+// call uses and that is missing here fails TestLoggingReference, and so does
+// an entry for a key no log call uses.
+var personalData = map[string]struct{ class, subject, content string }{
+	"<target.logKV>": {"tenant-pii", "tenant-user", "lower-camel kind as key, object name as value, plus `namespace` if namespaced"},
+	"certDir":        {"none", "none", "file path of the webhook certificate directory"},
+	"error":          {"tenant-pii", "tenant-user", "free text; API server errors name objects and namespaces"},
+	"field":          {"none", "none", "name of a field index"},
+	"gvk":            {"none", "none", "group, version and kind"},
+	"name":           {"tenant-pii", "tenant-user", "object name, chosen by the tenant"},
+	"namespace":      {"tenant-pii", "tenant-user", "namespace name, which can hold a tenant or user name"},
+}
+
+// renderPersonalData renders one row per log key with its classification and
+// the levels it is logged at. missing are logged keys personalData lacks,
+// stale are entries no log call uses.
+func renderPersonalData(calls []logCall) (table string, missing, stale []string) {
+	levels := map[string][]string{}
+	for _, c := range calls {
+		for f := range strings.SplitSeq(c.fields, ", ") {
+			if key := strings.Trim(f, "`"); key != "" && !slices.Contains(levels[key], c.level) {
+				levels[key] = append(levels[key], c.level)
+			}
+		}
 	}
-	doc = doc[:i+len(tableBegin)] + want + doc[j:]
-	if err := os.WriteFile(loggingDoc, []byte(doc), 0o600); err != nil {
-		t.Fatal(err)
+	keys := slices.Sorted(maps.Keys(levels))
+	var b strings.Builder
+	b.WriteString("| Field | Class | Data subject | Levels | Content |\n|---|---|---|---|---|\n")
+	for _, key := range keys {
+		pd, ok := personalData[key]
+		if !ok {
+			missing = append(missing, key)
+			continue
+		}
+		lv := levels[key]
+		slices.SortFunc(lv, func(a, b string) int { return levelRank(a) - levelRank(b) })
+		b.WriteString("| `" + key + "` | " + pd.class + " | " + pd.subject + " | " + strings.Join(lv, ", ") + " | " + pd.content + " |\n")
 	}
+	for _, key := range slices.Sorted(maps.Keys(personalData)) {
+		if _, ok := levels[key]; !ok {
+			stale = append(stale, key)
+		}
+	}
+	return b.String(), missing, stale
 }
 
 type logCall struct {

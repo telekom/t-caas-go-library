@@ -83,9 +83,29 @@ Their level and format follow the consumer's `ctrl.SetLogger` (and
 
 ### Personal data
 
-The fields the library adds itself (the keys in the table below) contain
-Kubernetes object names, namespaces, GVKs and file paths, never credentials,
-tokens or certificate material.
+The fields the library adds itself (the keys of the log reference below)
+contain Kubernetes object names, namespaces, GVKs and file paths, never
+credentials, tokens or certificate material. Object and namespace names are
+chosen by the tenant and can contain a tenant user's name, so they count as
+personal data of class `tenant-pii` with data subject `tenant-user`. No field
+carries `customer-data` (addresses or names of end customers).
+
+Every key is classified below, generated from the `personalData` table in
+`logging_doc_test.go`. *Levels* are the logr levels that log the key: at the
+default `info` level the `error` lines and the dynamiccache `namespace` lines
+already carry personal data; `V(2)`/`V(3)` add `name` and the object key.
+
+<!-- BEGIN GENERATED PERSONAL DATA TABLE -->
+| Field | Class | Data subject | Levels | Content |
+|---|---|---|---|---|
+| `<target.logKV>` | tenant-pii | tenant-user | V(3) | lower-camel kind as key, object name as value, plus `namespace` if namespaced |
+| `certDir` | none | none | info | file path of the webhook certificate directory |
+| `error` | tenant-pii | tenant-user | error | free text; API server errors name objects and namespaces |
+| `field` | none | none | error | name of a field index |
+| `gvk` | none | none | error, info | group, version and kind |
+| `name` | tenant-pii | tenant-user | V(2) | object name, chosen by the tenant |
+| `namespace` | tenant-pii | tenant-user | error, info | namespace name, which can hold a tenant or user name |
+<!-- END GENERATED PERSONAL DATA TABLE -->
 
 The `error` value is logged as is and is not redacted. Its text comes from
 wherever the error originated: API server responses (with object names), and
@@ -130,8 +150,11 @@ computed at run time (for example the kind name configured on an `ssa.Applier`).
 logr call (`Info`, `V(n).Info`, `Error`) and `utilruntime.HandleErrorWithContext`
 call with its level, message and keys. It runs in `make test` and fails when:
 
-- the table above differs from the code, so a new, changed or removed log line
+- a generated table differs from the code, so a new, changed or removed log line
   must update this document in the same pull request;
+- a log key has no entry in `personalData` in `logging_doc_test.go`, or an
+  entry names a key no log call uses, so every new field must be classified
+  by personal-data class and data subject;
 - a log call has no literal message (a string constant or a concatenation with
   one), because it could not be documented; or
 - library code logs other than through the context logger. Packages are
@@ -140,7 +163,7 @@ call with its level, message and keys. It runs in `make test` and fails when:
   `SetLogger`, `utilruntime.HandleError` without a context, `fmt.Print*`,
   `fmt.Fprint*` and `Write*` to stdout/stderr, and `print`/`println`.
 
-Regenerate the table with
+Regenerate the tables with
 
 ```sh
 go test . -run TestLoggingReference -update
