@@ -150,7 +150,9 @@ computed at run time (for example the kind name configured on an `ssa.Applier`).
 
 `logging_doc_test.go` parses every non-test file under `pkg/` and collects each
 logr call (`Info`, `V(n).Info`, `Error`) and `utilruntime.HandleErrorWithContext`
-call with its level, message and keys. It runs in `make test` and fails when:
+call with its level, message and keys. A `WithValues` call is listed with the
+message `(WithValues: fields of every later line)`, because its keys reach every
+line the derived logger writes. It runs in `make test` and fails when:
 
 - a generated table differs from the code, so a new, changed or removed log line
   must update this document in the same pull request;

@@ -233,14 +233,18 @@ func (v visitor) forbiddenSelector(sel *ast.SelectorExpr) string {
 	return ""
 }
 
-// classify recognizes logr calls (x.Info, x.V(n)...Info, x.Error) and
+// classify recognizes logr calls (x.Info, x.V(n)...Info, x.Error),
 // utilruntime.HandleErrorWithContext, which logs through the logr logger in
-// ctx. problem is set for a log call without a literal message and for direct
+// ctx, and x.WithValues, whose keys every later line of that logger carries
+// (recorded with the message withValuesMsg). problem is set for a log call without a literal message and for direct
 // output (fmt.Print*, fmt.Fprint* and Write* to os.Stdout/os.Stderr, print,
 // println).
 func (v visitor) classify(call *ast.CallExpr) (c logCall, isLog bool, problem string) {
 	if problem = v.directOutput(call); problem != "" {
 		return c, false, problem
+	}
+	if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "WithValues" && v.pkgOf(sel.X) == "" {
+		return logCall{pkg: v.pkg, level: logrLevel(sel.X), msg: withValuesMsg, fields: strings.Join(keyFields(call.Args), ", ")}, true, ""
 	}
 	msgIdx, level, ok := v.logCallSpec(call)
 	if !ok || len(call.Args) <= msgIdx {
@@ -254,15 +258,26 @@ func (v visitor) classify(call *ast.CallExpr) (c logCall, isLog bool, problem st
 	if level == "error" {
 		fields = append(fields, "`error`")
 	}
-	for k := msgIdx + 1; k < len(call.Args); k += 2 {
-		if lit, ok := call.Args[k].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+	fields = append(fields, keyFields(call.Args[msgIdx+1:])...)
+	return logCall{pkg: v.pkg, level: level, msg: msg, fields: strings.Join(fields, ", ")}, true, ""
+}
+
+// withValuesMsg is the message recorded for a WithValues call.
+const withValuesMsg = "(WithValues: fields of every later line)"
+
+// keyFields renders the keys of a key/value argument list; a key that is not
+// a string literal appears as <expr>.
+func keyFields(kv []ast.Expr) []string {
+	var fields []string
+	for k := 0; k < len(kv); k += 2 {
+		if lit, ok := kv[k].(*ast.BasicLit); ok && lit.Kind == token.STRING {
 			key, _ := strconv.Unquote(lit.Value)
 			fields = append(fields, "`"+key+"`")
 		} else {
-			fields = append(fields, "`<"+types.ExprString(call.Args[k])+">`")
+			fields = append(fields, "`<"+types.ExprString(kv[k])+">`")
 		}
 	}
-	return logCall{pkg: v.pkg, level: level, msg: msg, fields: strings.Join(fields, ", ")}, true, ""
+	return fields
 }
 
 // directOutput reports output that bypasses any logger.
@@ -460,6 +475,7 @@ func f(ctx context.Context, o opts, l logr.Logger, msg string, err error) {
 	})
 	want := []string{
 		"V(2) deep `b`",
+		"V(2) " + withValuesMsg + " `a`",
 		"V(n) dynamic ",
 		"error failed `error`, `k`",
 		"error handled `error`, `k`",
