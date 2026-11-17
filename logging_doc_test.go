@@ -11,6 +11,7 @@ import (
 	"go/token"
 	"go/types"
 	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"path"
@@ -74,21 +75,98 @@ func TestLoggingReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	doc := string(raw)
-	i, j := strings.Index(doc, tableBegin), strings.Index(doc, tableEnd)
+	pdTable, missing, stale := renderPersonalData(calls)
+	for _, key := range missing {
+		t.Errorf("log key %q has no entry in personalData (logging_doc_test.go): classify it", key)
+	}
+	for _, key := range stale {
+		t.Errorf("personalData lists %q, which no log call uses: remove it", key)
+	}
+	updated := syncTable(t, doc, tableBegin, tableEnd, renderTable(calls))
+	updated = syncTable(t, updated, pdBegin, pdEnd, pdTable)
+	if updated != doc {
+		if err := os.WriteFile(loggingDoc, []byte(updated), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// syncTable returns doc with the generated table between begin and end set
+// to want. Without -update a difference fails the test.
+func syncTable(t *testing.T, doc, begin, end, want string) string {
+	t.Helper()
+	i, j := strings.Index(doc, begin), strings.Index(doc, end)
 	if i < 0 || j < i {
-		t.Fatalf("%s: generated table markers missing", loggingDoc)
+		t.Fatalf("%s: generated table markers %q missing", loggingDoc, begin)
 	}
-	want := renderTable(calls)
-	if doc[i+len(tableBegin):j] == want {
-		return
+	if doc[i+len(begin):j] != want && !*update {
+		t.Fatalf("%s: generated table is out of date with the code; run: %s\n--- want\n%s", loggingDoc, updateHint, want)
 	}
-	if !*update {
-		t.Fatalf("%s: log table is out of date with the code; run: %s\n--- want\n%s", loggingDoc, updateHint, want)
+	return doc[:i+len(begin)] + want + doc[j:]
+}
+
+const (
+	pdBegin = "<!-- BEGIN GENERATED PERSONAL DATA TABLE -->\n"
+	pdEnd   = "<!-- END GENERATED PERSONAL DATA TABLE -->"
+)
+
+// personalData classifies every log key by the personal-data class and the
+// data subject of the tcaas-psa logging contract (chapter 3). A key that a log
+// call uses and that is missing here fails TestLoggingReference, and so does
+// an entry for a key no log call uses.
+var personalData = map[string]struct{ class, subject, content string }{
+	"<kind>":    {"tenant-pii", "tenant-user", "object name, logged under the object's lower-camel kind (for example `configMap`)"},
+	"certDir":   {"none", "none", "file path of the webhook certificate directory"},
+	"error":     {"tenant-pii", "tenant-user", "free text; API server errors name objects and namespaces"},
+	"field":     {"none", "none", "name of a field index"},
+	"gvk":       {"none", "none", "group, version and kind"},
+	"name":      {"tenant-pii", "tenant-user", "object name, chosen by the tenant"},
+	"namespace": {"tenant-pii", "tenant-user", "namespace name, which can hold a tenant or user name"},
+}
+
+// spreadKeys lists the keys of a key/value slice passed to a log call with
+// "...", which the scanner sees as one <expr> field: pkg/ssa/applier.go logs
+// target.logKV as the lower-camel kind with the object name, then
+// "namespace" for namespaced kinds.
+var spreadKeys = map[string][]string{"<target.logKV>": {"<kind>", "namespace"}}
+
+// renderPersonalData renders one row per log key with its classification and
+// the levels it is logged at. missing are logged keys personalData lacks,
+// stale are entries no log call uses.
+func renderPersonalData(calls []logCall) (table string, missing, stale []string) {
+	levels := map[string][]string{}
+	for _, c := range calls {
+		for f := range strings.SplitSeq(c.fields, ", ") {
+			keys, spread := spreadKeys[strings.Trim(f, "`")]
+			if !spread {
+				keys = []string{strings.Trim(f, "`")}
+			}
+			for _, k := range keys {
+				if k != "" && !slices.Contains(levels[k], c.level) {
+					levels[k] = append(levels[k], c.level)
+				}
+			}
+		}
 	}
-	doc = doc[:i+len(tableBegin)] + want + doc[j:]
-	if err := os.WriteFile(loggingDoc, []byte(doc), 0o600); err != nil {
-		t.Fatal(err)
+	keys := slices.Sorted(maps.Keys(levels))
+	var b strings.Builder
+	b.WriteString("| Field | Class | Data subject | Levels | Content |\n|---|---|---|---|---|\n")
+	for _, key := range keys {
+		pd, ok := personalData[key]
+		if !ok {
+			missing = append(missing, key)
+			continue
+		}
+		lv := levels[key]
+		slices.SortFunc(lv, func(a, b string) int { return levelRank(a) - levelRank(b) })
+		b.WriteString("| `" + key + "` | " + pd.class + " | " + pd.subject + " | " + strings.Join(lv, ", ") + " | " + pd.content + " |\n")
 	}
+	for _, key := range slices.Sorted(maps.Keys(personalData)) {
+		if _, ok := levels[key]; !ok {
+			stale = append(stale, key)
+		}
+	}
+	return b.String(), missing, stale
 }
 
 type logCall struct {
@@ -155,14 +233,18 @@ func (v visitor) forbiddenSelector(sel *ast.SelectorExpr) string {
 	return ""
 }
 
-// classify recognizes logr calls (x.Info, x.V(n)...Info, x.Error) and
+// classify recognizes logr calls (x.Info, x.V(n)...Info, x.Error),
 // utilruntime.HandleErrorWithContext, which logs through the logr logger in
-// ctx. problem is set for a log call without a literal message and for direct
+// ctx, and x.WithValues, whose keys every later line of that logger carries
+// (recorded with the message withValuesMsg). problem is set for a log call without a literal message and for direct
 // output (fmt.Print*, fmt.Fprint* and Write* to os.Stdout/os.Stderr, print,
 // println).
 func (v visitor) classify(call *ast.CallExpr) (c logCall, isLog bool, problem string) {
 	if problem = v.directOutput(call); problem != "" {
 		return c, false, problem
+	}
+	if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "WithValues" && v.pkgOf(sel.X) == "" {
+		return logCall{pkg: v.pkg, level: logrLevel(sel.X), msg: withValuesMsg, fields: strings.Join(keyFields(call.Args), ", ")}, true, ""
 	}
 	msgIdx, level, ok := v.logCallSpec(call)
 	if !ok || len(call.Args) <= msgIdx {
@@ -176,15 +258,26 @@ func (v visitor) classify(call *ast.CallExpr) (c logCall, isLog bool, problem st
 	if level == "error" {
 		fields = append(fields, "`error`")
 	}
-	for k := msgIdx + 1; k < len(call.Args); k += 2 {
-		if lit, ok := call.Args[k].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+	fields = append(fields, keyFields(call.Args[msgIdx+1:])...)
+	return logCall{pkg: v.pkg, level: level, msg: msg, fields: strings.Join(fields, ", ")}, true, ""
+}
+
+// withValuesMsg is the message recorded for a WithValues call.
+const withValuesMsg = "(WithValues: fields of every later line)"
+
+// keyFields renders the keys of a key/value argument list; a key that is not
+// a string literal appears as <expr>.
+func keyFields(kv []ast.Expr) []string {
+	var fields []string
+	for k := 0; k < len(kv); k += 2 {
+		if lit, ok := kv[k].(*ast.BasicLit); ok && lit.Kind == token.STRING {
 			key, _ := strconv.Unquote(lit.Value)
 			fields = append(fields, "`"+key+"`")
 		} else {
-			fields = append(fields, "`<"+types.ExprString(call.Args[k])+">`")
+			fields = append(fields, "`<"+types.ExprString(kv[k])+">`")
 		}
 	}
-	return logCall{pkg: v.pkg, level: level, msg: msg, fields: strings.Join(fields, ", ")}, true, ""
+	return fields
 }
 
 // directOutput reports output that bypasses any logger.
@@ -382,6 +475,7 @@ func f(ctx context.Context, o opts, l logr.Logger, msg string, err error) {
 	})
 	want := []string{
 		"V(2) deep `b`",
+		"V(2) " + withValuesMsg + " `a`",
 		"V(n) dynamic ",
 		"error failed `error`, `k`",
 		"error handled `error`, `k`",
